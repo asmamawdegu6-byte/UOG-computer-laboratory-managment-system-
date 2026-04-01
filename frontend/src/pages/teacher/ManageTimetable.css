@@ -1,0 +1,250 @@
+.manage-timetable {
+    padding: 1.5rem;
+}
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.page-header h1 {
+    margin: 0;
+    color: #1a237e;
+    font-size: 1.75rem;
+}
+
+.page-header p {
+    margin: 0.25rem 0 0;
+    color: #666;
+    font-size: 0.9rem;
+}
+
+.message {
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    font-size: 0.9rem;
+}
+
+.message.success {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.message.error {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+.week-navigation {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    gap: 1rem;
+}
+
+.week-display {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.week-range {
+    font-weight: 600;
+    color: #1a237e;
+    font-size: 1rem;
+}
+
+.timetable-card {
+    overflow-x: auto;
+}
+
+.timetable-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 1px;
+    background: #e5e7eb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    overflow: hidden;
+    min-width: 900px;
+}
+
+.timetable-day-column {
+    background: #fff;
+    min-height: 200px;
+}
+
+.timetable-day-column.today {
+    background: #f0f4ff;
+}
+
+.timetable-day-column.today .day-header {
+    background: #1a237e;
+    color: white;
+}
+
+.day-header {
+    padding: 0.75rem 0.5rem;
+    text-align: center;
+    background: #f3f4f6;
+    border-bottom: 1px solid #e5e7eb;
+    font-weight: 600;
+}
+
+.day-name {
+    display: block;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+}
+
+.day-date {
+    display: block;
+    font-size: 0.75rem;
+    color: #666;
+    margin-top: 0.25rem;
+}
+
+.today .day-date {
+    color: #bbdefb;
+}
+
+.day-sessions {
+    padding: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.session-block {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-left: 4px solid #3498db;
+    border-radius: 6px;
+    padding: 0.5rem;
+    font-size: 0.75rem;
+    position: relative;
+    transition: box-shadow 0.2s;
+}
+
+.session-block:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.session-course {
+    font-weight: 600;
+    color: #1a237e;
+    margin-bottom: 0.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.recurring-badge {
+    background: #3498db;
+    color: white;
+    font-size: 0.6rem;
+    padding: 0.1rem 0.3rem;
+    border-radius: 3px;
+    font-weight: 700;
+}
+
+.session-time {
+    color: #666;
+    font-size: 0.7rem;
+}
+
+.session-lab {
+    color: #888;
+    font-size: 0.7rem;
+    margin-top: 0.15rem;
+}
+
+.session-students {
+    color: #888;
+    font-size: 0.7rem;
+}
+
+.session-status {
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: capitalize;
+    margin-top: 0.25rem;
+    display: inline-block;
+}
+
+.cancel-btn {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    background: #fee2e2;
+    color: #dc2626;
+    border: none;
+    border-radius: 50%;
+    width: 18px;
+    height: 18px;
+    font-size: 0.65rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.session-block:hover .cancel-btn {
+    opacity: 1;
+}
+
+.cancel-btn:hover {
+    background: #dc2626;
+    color: white;
+}
+
+.no-sessions {
+    color: #ccc;
+    font-size: 0.75rem;
+    text-align: center;
+    padding: 1rem 0.5rem;
+    font-style: italic;
+}
+
+/* Recurring Form */
+.recurring-form .form-row {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.recurring-form .form-group {
+    margin-bottom: 0;
+}
+
+.recurring-form label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: #374151;
+    font-size: 0.9rem;
+}
+
+@media (max-width: 768px) {
+    .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .week-navigation {
+        flex-direction: column;
+    }
+
+    .recurring-form .form-row {
+        flex-direction: column;
+    }
+}

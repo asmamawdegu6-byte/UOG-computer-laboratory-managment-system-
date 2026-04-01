@@ -1,0 +1,355 @@
+/* View Availability Styles */
+
+.view-availability {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.page-header {
+  margin-bottom: 2rem;
+}
+
+.page-header h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #1a237e;
+  margin: 0 0 0.5rem 0;
+}
+
+.page-header p {
+  color: #5c6bc0;
+  font-size: 1rem;
+  margin: 0;
+}
+
+/* Labs Grid */
+.labs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.lab-card {
+  background: white;
+  border-radius: 16px;
+  padding: 1.5rem;
+  border: 2px solid #e8eaf6;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-align: center;
+}
+
+.lab-card:hover {
+  border-color: #3949ab;
+  transform: translateY(-4px);
+  box-shadow: 0 8px 25px rgba(57, 73, 171, 0.15);
+}
+
+.lab-card.selected {
+  border-color: #3949ab;
+  background: linear-gradient(135deg, #e8eaf6 0%, #c5cae9 100%);
+  box-shadow: 0 8px 25px rgba(57, 73, 171, 0.2);
+}
+
+.lab-icon {
+  width: 60px;
+  height: 60px;
+  margin: 0 auto 1rem;
+  background: linear-gradient(135deg, #3949ab 0%, #5c6bc0 100%);
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
+.lab-icon svg {
+  width: 32px;
+  height: 32px;
+}
+
+.lab-card h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #1a237e;
+  margin: 0 0 0.5rem 0;
+}
+
+.lab-location {
+  font-size: 0.85rem;
+  color: #757575;
+  margin: 0 0 0.75rem 0;
+}
+
+.lab-capacity {
+  display: inline-block;
+  background: #e8eaf6;
+  color: #3949ab;
+  padding: 0.35rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+/* Date Section */
+.date-section {
+  margin-bottom: 2rem;
+}
+
+.date-card {
+  background: white;
+  border-radius: 16px;
+  padding: 1.5rem;
+  display: flex;
+  align-items: flex-end;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.date-card label {
+  display: block;
+  font-weight: 600;
+  color: #424242;
+  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.date-input-wrapper {
+  position: relative;
+  flex: 1;
+  min-width: 250px;
+}
+
+.date-input-wrapper svg {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  color: #757575;
+}
+
+.date-input-wrapper input {
+  width: 100%;
+  padding: 0.875rem 1rem 0.875rem 3rem;
+  border: 2px solid #e0e0e0;
+  border-radius: 12px;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+}
+
+.date-input-wrapper input:focus {
+  outline: none;
+  border-color: #3949ab;
+  box-shadow: 0 0 0 4px rgba(57, 73, 171, 0.1);
+}
+
+.check-btn {
+  background: linear-gradient(135deg, #3949ab 0%, #5c6bc0 100%);
+  color: white;
+  border: none;
+  padding: 0.875rem 2rem;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.3s ease;
+}
+
+.check-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(57, 73, 171, 0.3);
+}
+
+.check-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.check-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Results Section */
+.results-section {
+  background: white;
+  border-radius: 16px;
+  padding: 2rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.results-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.results-header h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1a237e;
+  margin: 0;
+}
+
+.date-display {
+  background: #e8eaf6;
+  color: #3949ab;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+.time-slots-grid {
+  display: grid;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.time-slot {
+  padding: 1.25rem;
+  background: #f5f7fa;
+  border-radius: 12px;
+  border-left: 4px solid #2ecc71;
+  transition: all 0.3s ease;
+}
+
+.time-slot:hover {
+  transform: translateX(4px);
+}
+
+.time-slot.limited {
+  border-left-color: #e74c3c;
+}
+
+.time-label {
+  font-weight: 600;
+  color: #1a237e;
+  margin-bottom: 0.75rem;
+  font-size: 1rem;
+}
+
+.availability-bar {
+  height: 10px;
+  background: #e0e0e0;
+  border-radius: 5px;
+  overflow: hidden;
+  margin-bottom: 0.5rem;
+}
+
+.availability-fill {
+  height: 100%;
+  border-radius: 5px;
+  transition: width 0.5s ease;
+}
+
+.availability-count {
+  font-size: 0.85rem;
+  color: #757575;
+  font-weight: 500;
+}
+
+/* Legend */
+.legend {
+  display: flex;
+  gap: 2rem;
+  justify-content: center;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.legend-color {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+}
+
+.legend-item span:last-child {
+  font-size: 0.9rem;
+  color: #616161;
+}
+
+/* Quick Book */
+.quick-book {
+  text-align: center;
+  padding: 2rem;
+  background: linear-gradient(135deg, #e8eaf6 0%, #c5cae9 100%);
+  border-radius: 16px;
+}
+
+.quick-book p {
+  margin: 0 0 1rem 0;
+  color: #424242;
+  font-size: 1.1rem;
+}
+
+.book-now-btn {
+  display: inline-block;
+  background: linear-gradient(135deg, #3949ab 0%, #5c6bc0 100%);
+  color: white;
+  padding: 1rem 2.5rem;
+  border-radius: 12px;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 1.1rem;
+  transition: all 0.3s ease;
+}
+
+.book-now-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(57, 73, 171, 0.3);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .labs-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 1rem;
+  }
+
+  .date-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .date-input-wrapper {
+    min-width: 100%;
+  }
+
+  .check-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .legend {
+    gap: 1rem;
+  }
+}

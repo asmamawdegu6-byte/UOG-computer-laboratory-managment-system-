@@ -1,0 +1,36 @@
+.interest-photo-picker {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+}
+
+.photo-preview {
+    width: 200px;
+    height: 200px;
+    border: 2px dashed #cbd5e1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+}
+
+.photo-preview:hover {
+    border-color: #3b82f6;
+    background-color: #f8fafc;
+    opacity: 0.9;
+}
+
+.photo-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.actions {
+    display: flex;
+    gap: 10px;
+}

@@ -1,0 +1,16 @@
+# OS Files
+.DS_Store
+Thumbs.db
+
+# IDE/Editor
+.vscode/
+.idea/
+
+node_modules/
+
+# Binaries and Installers
+*.msi
+*.exe
+
+# Scratch files
+query

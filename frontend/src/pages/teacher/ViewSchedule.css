@@ -1,0 +1,353 @@
+.view-schedule {
+    padding: 1.5rem;
+    max-width: 1200px;
+}
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1.5rem;
+}
+
+.page-header h1 {
+    font-size: 1.875rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 0.25rem;
+}
+
+.page-description {
+    color: #64748b;
+    margin: 0;
+    font-size: 0.95rem;
+}
+
+.error-message {
+    background-color: #fee2e2;
+    border: 1px solid #fecaca;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    color: #991b1b;
+    font-size: 0.875rem;
+}
+
+/* Course Summary Row */
+.course-summary-row {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.course-summary-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-left: 4px solid #2563eb;
+    border-radius: 0.5rem;
+    padding: 0.75rem 1rem;
+    min-width: 180px;
+    flex: 1;
+}
+
+.csc-name {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 0.1rem;
+}
+
+.csc-code {
+    font-size: 0.8rem;
+    color: #64748b;
+    margin-bottom: 0.5rem;
+}
+
+.csc-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+}
+
+.csc-count {
+    font-weight: 600;
+    color: #2563eb;
+}
+
+.csc-labs {
+    color: #64748b;
+}
+
+/* Week Navigation */
+.week-navigation {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    padding: 0.75rem 1rem;
+    background-color: #f8fafc;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+}
+
+.week-range {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 1rem;
+    color: #1e293b;
+}
+
+.current-week-badge {
+    background-color: #2563eb;
+    color: white;
+    padding: 0.2rem 0.6rem;
+    border-radius: 9999px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+/* TIMETABLE */
+.timetable-wrapper {
+    overflow-x: auto;
+    margin-bottom: 1rem;
+    border-radius: 0.75rem;
+    border: 2px solid #e5e7eb;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.timetable {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    table-layout: fixed;
+}
+
+.timetable th,
+.timetable td {
+    border: 1px solid #e2e8f0;
+    padding: 0;
+    text-align: center;
+}
+
+/* Time Header */
+.timetable-time-header {
+    width: 100px;
+    background: #1e293b;
+    color: #fff;
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 1rem 0.5rem !important;
+}
+
+/* Day Headers */
+.timetable-day-header {
+    background: #f1f5f9;
+    padding: 0.75rem 0.5rem !important;
+    min-width: 150px;
+}
+
+.th-day-name {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: #1e293b;
+    margin-bottom: 0.15rem;
+}
+
+.th-day-date {
+    font-size: 0.8rem;
+    color: #64748b;
+}
+
+.today-col-header {
+    background: #dbeafe !important;
+    border-bottom: 3px solid #2563eb !important;
+}
+
+.today-col-badge {
+    display: inline-block;
+    margin-top: 0.35rem;
+    background: #2563eb;
+    color: #fff;
+    padding: 0.15rem 0.5rem;
+    border-radius: 9999px;
+    font-size: 0.6rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+/* Today Column Highlight */
+.today-col {
+    background-color: #f0f7ff !important;
+}
+
+/* Time Cell */
+.timetable-time-cell {
+    background: #f8fafc;
+    padding: 0.6rem 0.5rem !important;
+    width: 100px;
+    vertical-align: middle !important;
+}
+
+.slot-time-start {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: #1e293b;
+}
+
+.slot-time-to {
+    font-size: 0.65rem;
+    color: #9ca3af;
+    margin: 0.1rem 0;
+}
+
+.slot-time-end {
+    font-size: 0.9rem;
+    color: #64748b;
+    font-weight: 600;
+}
+
+/* Session Cell */
+.timetable-cell {
+    height: 90px;
+    vertical-align: top !important;
+    padding: 0.35rem !important;
+}
+
+/* Session Block in Timetable */
+.tt-session {
+    border-left: 4px solid #059669;
+    border-radius: 4px;
+    padding: 0.4rem 0.5rem;
+    height: 100%;
+    text-align: left;
+    background: #ecfdf5;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+}
+
+.tt-course-name {
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: #1e293b;
+    line-height: 1.2;
+    margin-bottom: 0.15rem;
+}
+
+.tt-course-code {
+    font-size: 0.7rem;
+    color: #64748b;
+    margin-bottom: 0.15rem;
+}
+
+.tt-lab-name {
+    font-size: 0.75rem;
+    color: #374151;
+    font-weight: 500;
+    margin-bottom: 0.2rem;
+}
+
+.tt-session-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: auto;
+    font-size: 0.7rem;
+    color: #64748b;
+    font-weight: 600;
+}
+
+.tt-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+/* Empty Cell */
+.tt-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #cbd5e1;
+    font-size: 0.75rem;
+    font-style: italic;
+}
+
+/* Empty Row */
+.timetable-empty-row {
+    padding: 3rem !important;
+    text-align: center;
+    color: #94a3b8;
+    font-size: 1rem;
+    background: #f9fafb;
+}
+
+/* Legend */
+.timetable-legend {
+    display: flex;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+    padding: 0.5rem 0;
+    font-size: 0.8rem;
+    color: #64748b;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+
+/* Status Badge */
+.schedule-status-badge {
+    padding: 0.2rem 0.6rem;
+    border-radius: 9999px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: capitalize;
+    display: inline-block;
+}
+
+/* Session Table Section */
+.session-table-section {
+    margin-top: 1.5rem;
+}
+
+.section-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 0.75rem;
+}
+
+.today-inline-tag {
+    display: inline-block;
+    margin-left: 0.35rem;
+    background: #2563eb;
+    color: #fff;
+    padding: 0.1rem 0.4rem;
+    border-radius: 9999px;
+    font-size: 0.6rem;
+    font-weight: 700;
+    vertical-align: middle;
+}
+
+/* Loading */
+.loading {
+    text-align: center;
+    padding: 2rem;
+    color: #64748b;
+}

@@ -1,0 +1,35 @@
+const express = require('express');
+const router = express.Router();
+const { body, validationResult } = require('express-validator');
+const { authenticate, authorize } = require('../middleware/auth');
+const bookingController = require('../controllers/bookingController');
+
+const validate = (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ success: false, message: 'Validation failed', errors: errors.array().map(e => e.msg) });
+    }
+    next();
+};
+
+router.get('/conflicts', authenticate, authorize('admin', 'superadmin'), bookingController.detectConflicts);
+router.get('/', authenticate, authorize('admin', 'superadmin'), bookingController.getAllBookings);
+router.get('/my-bookings', authenticate, bookingController.getMyBookings);
+router.get('/history', authenticate, bookingController.getBookingHistory);
+
+router.post('/', authenticate, [
+    body('labId').notEmpty(),
+    body('workstationId').notEmpty(),
+    body('date').isISO8601(),
+    body('startTime').matches(/^([01]\d|2[0-3]):([0-5]\d)$/),
+    body('endTime').matches(/^([01]\d|2[0-3]):([0-5]\d)$/),
+    body('purpose').trim().notEmpty(),
+    validate
+], bookingController.createBooking);
+
+router.delete('/:id', authenticate, bookingController.cancelBooking);
+router.patch('/:id/status', authenticate, authorize('admin', 'superadmin'), bookingController.updateStatus);
+router.patch('/:id/checkin', authenticate, bookingController.checkin);
+router.patch('/:id/resolve-conflict', authenticate, authorize('admin', 'superadmin'), bookingController.resolveConflict);
+
+module.exports = router;
