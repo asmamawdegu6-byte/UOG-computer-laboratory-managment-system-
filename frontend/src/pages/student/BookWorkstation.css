@@ -81,8 +81,15 @@
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .step-content h2 {
@@ -173,6 +180,22 @@
 }
 
 .selected-lab-info strong {
+  color: #3949ab;
+}
+
+.selected-room-info {
+  display: flex;
+  gap: 0.5rem;
+  margin-left: 1rem;
+  padding-left: 1rem;
+  border-left: 2px solid #c5cae9;
+}
+
+.selected-room-info span {
+  color: #616161;
+}
+
+.selected-room-info strong {
   color: #3949ab;
 }
 
@@ -481,7 +504,9 @@
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Responsive */

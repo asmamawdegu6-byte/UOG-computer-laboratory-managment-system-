@@ -92,6 +92,126 @@
   font-weight: 600;
 }
 
+/* Rooms Section */
+.rooms-section {
+  background: white;
+  border-radius: 16px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.rooms-header {
+  margin-bottom: 1.5rem;
+}
+
+.rooms-header h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1a237e;
+  margin: 0 0 0.5rem 0;
+}
+
+.rooms-header p {
+  color: #757575;
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.rooms-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1.25rem;
+}
+
+.room-card {
+  background: #f5f7fa;
+  border-radius: 12px;
+  padding: 1.25rem;
+  border: 2px solid #e0e0e0;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-align: center;
+}
+
+.room-card:hover {
+  border-color: #3949ab;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(57, 73, 171, 0.1);
+}
+
+.room-card.selected {
+  border-color: #3949ab;
+  background: linear-gradient(135deg, #e8eaf6 0%, #c5cae9 100%);
+  box-shadow: 0 4px 15px rgba(57, 73, 171, 0.15);
+}
+
+.room-card.restricted {
+  border-color: #ff9800;
+}
+
+.room-card.restricted:hover {
+  border-color: #f57c00;
+}
+
+.room-card.restricted.selected {
+  border-color: #f57c00;
+  background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+}
+
+.room-icon {
+  width: 50px;
+  height: 50px;
+  margin: 0 auto 0.75rem;
+  background: linear-gradient(135deg, #5c6bc0 0%, #7986cb 100%);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
+.room-card.restricted .room-icon {
+  background: linear-gradient(135deg, #ff9800 0%, #ffa726 100%);
+}
+
+.room-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.room-card h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1a237e;
+  margin: 0 0 0.5rem 0;
+}
+
+.room-capacity {
+  font-size: 0.85rem;
+  color: #757575;
+  margin: 0 0 0.75rem 0;
+}
+
+.gender-badge {
+  display: inline-block;
+  padding: 0.3rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.gender-badge.female {
+  background: #fce4ec;
+  color: #c2185b;
+}
+
+.gender-badge.male {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
 /* Date Section */
 .date-section {
   margin-bottom: 2rem;
@@ -187,7 +307,9 @@
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Results Section */
@@ -212,6 +334,12 @@
   font-weight: 700;
   color: #1a237e;
   margin: 0;
+}
+
+.results-header>div {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
 }
 
 .date-display {
@@ -335,6 +463,11 @@
     gap: 1rem;
   }
 
+  .rooms-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 1rem;
+  }
+
   .date-card {
     flex-direction: column;
     align-items: stretch;
@@ -351,5 +484,10 @@
 
   .legend {
     gap: 1rem;
+  }
+
+  .results-header {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }

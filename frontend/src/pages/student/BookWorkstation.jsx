@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import DashboardLayout from '../../components/layout/DashboardLayout';
 import api from '../../services/api';
 import Notification from '../../components/ui/Notification';
 import './BookWorkstation.css';
 
 const BookWorkstation = () => {
+  const [searchParams] = useSearchParams();
   const [step, setStep] = useState(1);
+  const [selectedRoomName, setSelectedRoomName] = useState('');
   const [formData, setFormData] = useState({
     labId: '',
     date: '',
@@ -59,6 +62,35 @@ const BookWorkstation = () => {
       }
     }
   }, [formData.labId, labs]);
+
+  // Pre-select lab from query parameters (when coming from ViewAvailability)
+  useEffect(() => {
+    const labNameFromQuery = searchParams.get('labName');
+    const roomNameFromQuery = searchParams.get('roomName');
+    const dateFromQuery = searchParams.get('date');
+
+    console.log('[DEBUG] Query params:', { labNameFromQuery, roomNameFromQuery, dateFromQuery });
+    console.log('[DEBUG] Available labs:', labs.map(l => l.name));
+
+    if (labNameFromQuery && labs.length > 0) {
+      const labExists = labs.find(l => l.name === labNameFromQuery);
+      console.log('[DEBUG] Lab found:', labExists);
+      if (labExists) {
+        setFormData(prev => ({
+          ...prev,
+          labId: labExists._id,
+          date: dateFromQuery || prev.date
+        }));
+        if (roomNameFromQuery) {
+          setSelectedRoomName(roomNameFromQuery);
+        }
+        setStep(2);
+        console.log('[DEBUG] Set step to 2');
+      } else {
+        console.log('[DEBUG] Lab not found! Available labs:', labs.map(l => l.name));
+      }
+    }
+  }, [labs, searchParams]);
 
   // Check for booked workstations when date/time changes
   const checkAvailability = useCallback(async () => {
@@ -140,7 +172,7 @@ const BookWorkstation = () => {
       console.error('Booking error:', error);
       const errorMessage = error?.response?.data?.message || 'Failed to create booking';
       showNotification('error', errorMessage);
-      
+
       // If conflict detected, show specific message
       if (error?.response?.status === 409) {
         showNotification('error', 'This time slot is already booked. Please select a different time or workstation.');
@@ -188,9 +220,9 @@ const BookWorkstation = () => {
             </div>
             <div className="info-box">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="10"/>
-                <line x1="12" y1="16" x2="12" y2="12"/>
-                <line x1="12" y1="8" x2="12.01" y2="8"/>
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="16" x2="12" y2="12" />
+                <line x1="12" y1="8" x2="12.01" y2="8" />
               </svg>
               <p>Your booking is pending admin approval. You will be notified once it is confirmed.</p>
             </div>
@@ -298,6 +330,12 @@ const BookWorkstation = () => {
               <div className="selected-lab-info">
                 <span>Selected Lab:</span>
                 <strong>{selectedLab?.name}</strong>
+                {selectedRoomName && (
+                  <span className="selected-room-info">
+                    <span>Room:</span>
+                    <strong>{selectedRoomName}</strong>
+                  </span>
+                )}
               </div>
               <form onSubmit={handleDateTimeSubmit}>
                 <div className="form-group">

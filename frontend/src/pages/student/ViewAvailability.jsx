@@ -1,20 +1,63 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../components/layout/DashboardLayout';
 import './ViewAvailability.css';
 
 const ViewAvailability = () => {
+  const navigate = useNavigate();
   const [selectedLab, setSelectedLab] = useState('');
+  const [selectedRoom, setSelectedRoom] = useState('');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState(false);
   const [showResults, setShowResults] = useState(false);
 
-  // Mock labs data
+  // Labs data with rooms
   const labs = [
-    { id: 'lab-a', name: 'Computer Lab A', location: 'Main Building, Floor 1', totalPCs: 40 },
-    { id: 'lab-b', name: 'Computer Lab B', location: 'Main Building, Floor 2', totalPCs: 35 },
-    { id: 'lab-c', name: 'Computer Lab C', location: 'Science Block, Floor 1', totalPCs: 30 },
-    { id: 'lab-d', name: 'Multimedia Lab', location: 'Arts Building, Floor 2', totalPCs: 25 },
-    { id: 'lab-e', name: 'Programming Lab', location: 'IT Center, Floor 3', totalPCs: 45 },
+    {
+      id: 'it-lab',
+      name: 'IT Lab',
+      location: 'Main Building, Floor 1',
+      totalPCs: 140,
+      rooms: [
+        { id: 'lab-a', name: 'Lab A', totalPCs: 40, genderRestriction: null },
+        { id: 'lab-b', name: 'Lab B', totalPCs: 35, genderRestriction: null },
+        { id: 'lab-c', name: 'Lab C', totalPCs: 30, genderRestriction: null },
+        { id: 'post-lab', name: 'Post Lab', totalPCs: 35, genderRestriction: null }
+      ]
+    },
+    {
+      id: 'cs-lab',
+      name: 'CS Lab',
+      location: 'Main Building, Floor 2',
+      totalPCs: 110,
+      rooms: [
+        { id: 'lab-d', name: 'Lab D', totalPCs: 40, genderRestriction: null },
+        { id: 'lab-e', name: 'Lab E', totalPCs: 35, genderRestriction: null },
+        { id: 'cs-post-lab', name: 'Post Lab', totalPCs: 35, genderRestriction: null }
+      ]
+    },
+    {
+      id: 'main-library-lab',
+      name: 'Main Library Lab',
+      location: 'Library Building, Floor 1',
+      totalPCs: 160,
+      rooms: [
+        { id: 'room-1', name: 'Room 1', totalPCs: 40, genderRestriction: null },
+        { id: 'room-2', name: 'Room 2', totalPCs: 40, genderRestriction: null },
+        { id: 'room-3', name: 'Room 3', totalPCs: 40, genderRestriction: 'Female Only' },
+        { id: 'room-4', name: 'Room 4', totalPCs: 40, genderRestriction: null }
+      ]
+    },
+    {
+      id: 'veterinary-lab',
+      name: 'Veterinary Lab',
+      location: 'Veterinary Building, Floor 1',
+      totalPCs: 80,
+      rooms: [
+        { id: 'vet-room-1', name: 'Room 1', totalPCs: 40, genderRestriction: 'Male Only' },
+        { id: 'vet-room-2', name: 'Room 2', totalPCs: 40, genderRestriction: 'Female Only' }
+      ]
+    }
   ];
 
   // Time slots
@@ -31,8 +74,19 @@ const ViewAvailability = () => {
     { time: '17:00 - 18:00', available: 30 },
   ];
 
+  const handleLabSelect = (labId) => {
+    setSelectedLab(labId);
+    setSelectedRoom('');
+    setShowResults(false);
+  };
+
+  const handleRoomSelect = (roomId) => {
+    setSelectedRoom(roomId);
+    setShowResults(false);
+  };
+
   const handleCheckAvailability = () => {
-    if (!selectedLab) return;
+    if (!selectedLab || !selectedRoom) return;
     setLoading(true);
     setTimeout(() => {
       setLoading(false);
@@ -41,6 +95,7 @@ const ViewAvailability = () => {
   };
 
   const selectedLabData = labs.find(lab => lab.id === selectedLab);
+  const selectedRoomData = selectedLabData?.rooms.find(room => room.id === selectedRoom);
 
   return (
     <DashboardLayout>
@@ -56,7 +111,7 @@ const ViewAvailability = () => {
             <div
               key={lab.id}
               className={`lab-card ${selectedLab === lab.id ? 'selected' : ''}`}
-              onClick={() => setSelectedLab(lab.id)}
+              onClick={() => handleLabSelect(lab.id)}
             >
               <div className="lab-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -67,10 +122,44 @@ const ViewAvailability = () => {
               </div>
               <h3>{lab.name}</h3>
               <p className="lab-location">{lab.location}</p>
-              <span className="lab-capacity">{lab.totalPCs} Workstations</span>
+              <span className="lab-capacity">{lab.rooms.length} Rooms</span>
             </div>
           ))}
         </div>
+
+        {/* Rooms Section - Show when lab is selected */}
+        {selectedLabData && (
+          <div className="rooms-section">
+            <div className="rooms-header">
+              <h2>{selectedLabData.name} - Available Rooms</h2>
+              <p>Select a room to check availability</p>
+            </div>
+            <div className="rooms-grid">
+              {selectedLabData.rooms.map((room) => (
+                <div
+                  key={room.id}
+                  className={`room-card ${selectedRoom === room.id ? 'selected' : ''} ${room.genderRestriction ? 'restricted' : ''}`}
+                  onClick={() => handleRoomSelect(room.id)}
+                >
+                  <div className="room-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                      <line x1="3" y1="9" x2="21" y2="9" />
+                      <line x1="9" y1="21" x2="9" y2="9" />
+                    </svg>
+                  </div>
+                  <h4>{room.name}</h4>
+                  <p className="room-capacity">{room.totalPCs} Workstations</p>
+                  {room.genderRestriction && (
+                    <span className={`gender-badge ${room.genderRestriction === 'Female Only' ? 'female' : 'male'}`}>
+                      {room.genderRestriction}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Date Selection */}
         <div className="date-section">
@@ -92,7 +181,7 @@ const ViewAvailability = () => {
             <button
               className="check-btn"
               onClick={handleCheckAvailability}
-              disabled={!selectedLab || loading}
+              disabled={!selectedLab || !selectedRoom || loading}
             >
               {loading ? (
                 <span className="spinner"></span>
@@ -109,10 +198,17 @@ const ViewAvailability = () => {
         </div>
 
         {/* Results Section */}
-        {showResults && selectedLabData && (
+        {showResults && selectedLabData && selectedRoomData && (
           <div className="results-section">
             <div className="results-header">
-              <h2>Availability for {selectedLabData.name}</h2>
+              <div>
+                <h2>Availability for {selectedLabData.name} - {selectedRoomData.name}</h2>
+                {selectedRoomData.genderRestriction && (
+                  <span className={`gender-badge ${selectedRoomData.genderRestriction === 'Female Only' ? 'female' : 'male'}`}>
+                    {selectedRoomData.genderRestriction}
+                  </span>
+                )}
+              </div>
               <span className="date-display">{selectedDate}</span>
             </div>
 
@@ -124,13 +220,13 @@ const ViewAvailability = () => {
                     <div
                       className="availability-fill"
                       style={{
-                        width: `${(slot.available / selectedLabData.totalPCs) * 100}%`,
+                        width: `${(slot.available / selectedRoomData.totalPCs) * 100}%`,
                         backgroundColor: slot.available < 10 ? '#e74c3c' : slot.available < 20 ? '#f39c12' : '#2ecc71'
                       }}
                     />
                   </div>
                   <div className="availability-count">
-                    {slot.available} / {selectedLabData.totalPCs} available
+                    {slot.available} / {selectedRoomData.totalPCs} available
                   </div>
                 </div>
               ))}
@@ -153,7 +249,16 @@ const ViewAvailability = () => {
 
             <div className="quick-book">
               <p>Found a suitable time? Book your workstation now!</p>
-              <a href="/student/book" className="book-now-btn">Book Workstation →</a>
+              <button
+                className="book-now-btn"
+                onClick={() => {
+                  const selectedLabData = labs.find(lab => lab.id === selectedLab);
+                  const selectedRoomData = selectedLabData?.rooms.find(room => room.id === selectedRoom);
+                  navigate(`/student/book?labName=${encodeURIComponent(selectedLabData?.name || '')}&roomName=${encodeURIComponent(selectedRoomData?.name || '')}&date=${selectedDate}`);
+                }}
+              >
+                Book Workstation →
+              </button>
             </div>
           </div>
         )}
