@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { body, validationResult } = require('express-validator');
-const { authenticate, authorize } = require('../middleware/auth');
+const { authenticate, authorize, campusFilter } = require('../middleware/auth');
 const userController = require('../controllers/userController');
 
 // Validation middleware
@@ -34,6 +34,11 @@ router.post('/', authenticate, authorize('admin', 'superadmin'), [
 
 // @route   GET /api/users
 router.get('/', authenticate, authorize('admin', 'superadmin'), userController.getAllUsers);
+
+// @route   GET /api/users/students
+// @desc    Get students by year, semester, department (for teachers)
+// @access  Teacher/Admin
+router.get('/students', authenticate, authorize('teacher', 'admin'), userController.getStudentsByFilter);
 
 // @route   GET /api/users/:id
 router.get('/:id', authenticate, userController.getUserById);
@@ -69,5 +74,8 @@ router.put('/:id/reset-password', authenticate, authorize('admin', 'superadmin')
 
 // @route   DELETE /api/users/:id
 router.delete('/:id', authenticate, authorize('admin', 'superadmin'), userController.deleteUser);
+
+// @route   PUT /api/users/:id/toggle-status
+router.put('/:id/toggle-status', authenticate, userController.toggleUserStatus);
 
 module.exports = router;

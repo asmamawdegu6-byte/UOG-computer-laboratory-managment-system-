@@ -99,7 +99,7 @@ exports.getDashboard = async (req, res) => {
 // @access  Superadmin
 exports.getAuditLogs = async (req, res) => {
     try {
-        const { action, user, resource, startDate, endDate, page = 1, limit = 20, search } = req.query;
+        const { action, user, resource, startDate, endDate, page = 1, limit = 1000, search } = req.query;
 
         let query = {};
         if (action) query.action = action;
@@ -168,10 +168,26 @@ exports.getCampuses = async (req, res) => {
         const campusesWithStats = await Promise.all(campuses.map(async (campus) => {
             const labCount = await Lab.countDocuments({ 'location.building': campus.name });
             const userCount = await User.countDocuments({ campus: campus.name });
+            
+            // Get the admin user details if admin is assigned
+            let adminInfo = null;
+            if (campus.admin) {
+                const adminUser = await User.findById(campus.admin).select('name email username');
+                if (adminUser) {
+                    adminInfo = {
+                        id: adminUser._id,
+                        name: adminUser.name,
+                        email: adminUser.email,
+                        username: adminUser.username
+                    };
+                }
+            }
+
             return {
                 ...campus.toObject(),
                 labCount,
-                userCount
+                userCount,
+                adminInfo
             };
         }));
 
@@ -187,7 +203,7 @@ exports.getCampuses = async (req, res) => {
 // @access  Superadmin
 exports.createCampus = async (req, res) => {
     try {
-        const { name, code, address, city, contactEmail, contactPhone, description } = req.body;
+        const { name, code, address, city, contactEmail, contactPhone, description, admin, adminName } = req.body;
 
         const existing = await Campus.findOne({ code: code.toUpperCase() });
         if (existing) {
@@ -195,8 +211,18 @@ exports.createCampus = async (req, res) => {
         }
 
         const campus = await Campus.create({
-            name, code, address, city, contactEmail, contactPhone, description
+            name, code, address, city, contactEmail, contactPhone, description,
+            admin: admin || null,
+            adminName: adminName || ''
         });
+
+        // If admin is assigned, update the user's campus and role
+        if (admin) {
+            await User.findByIdAndUpdate(admin, { 
+                campus: name,
+                role: 'admin'
+            });
+        }
 
         await AuditLog.create({
             user: req.user._id,
@@ -226,7 +252,7 @@ exports.updateCampus = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Campus not found' });
         }
 
-        const { name, code, address, city, contactEmail, contactPhone, description, isActive } = req.body;
+        const { name, code, address, city, contactEmail, contactPhone, description, isActive, admin, adminName } = req.body;
         const previousValues = campus.toObject();
 
         if (name !== undefined) campus.name = name;
@@ -245,6 +271,26 @@ exports.updateCampus = async (req, res) => {
         if (contactPhone !== undefined) campus.contactPhone = contactPhone;
         if (description !== undefined) campus.description = description;
         if (isActive !== undefined) campus.isActive = isActive;
+
+        // Handle admin assignment
+        const previousAdmin = campus.admin;
+        if (admin !== undefined) {
+            campus.admin = admin || null;
+            campus.adminName = adminName || '';
+            
+            // Remove previous admin's admin role if exists
+            if (previousAdmin && previousAdmin.toString() !== admin) {
+                await User.findByIdAndUpdate(previousAdmin, { role: 'technician' });
+            }
+            
+            // Set new admin
+            if (admin) {
+                await User.findByIdAndUpdate(admin, { 
+                    campus: name || campus.name,
+                    role: 'admin'
+                });
+            }
+        }
 
         await campus.save();
 
@@ -456,6 +502,55 @@ exports.createConfig = async (req, res) => {
         res.status(201).json({ success: true, message: 'Configuration created', config });
     } catch (error) {
         console.error('Create config error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @route   POST /api/superadmin/reset-password-by-phone
+// @desc    Reset user password by phone number without verification code (Superadmin only)
+// @access  Superadmin
+exports.resetPasswordByPhone = async (req, res) => {
+    try {
+        const { phone, newPassword } = req.body;
+
+        if (!phone || !newPassword) {
+            return res.status(400).json({ success: false, message: 'Phone number and new password are required' });
+        }
+
+        if (newPassword.length < 6) {
+            return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
+        }
+
+        const user = await User.findOne({ phone });
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found with this phone number' });
+        }
+
+        // Prevent superadmin from resetting another superadmin's password
+        if (user.role === 'superadmin' && req.user.role !== 'superadmin') {
+            return res.status(403).json({ success: false, message: 'Cannot reset superadmin password' });
+        }
+
+        user.password = newPassword;
+        await user.save();
+
+        await AuditLog.create({
+            user: req.user._id,
+            action: 'user.password_reset_admin',
+            resource: 'User',
+            resourceId: user._id,
+            details: `Superadmin reset password for user: ${user.name} (${user.username}) via phone`, 
+            previousValue: { password: '***' },
+            newValue: { password: '***' },
+            ipAddress: req.ip
+        });
+
+        res.json({ 
+            success: true, 
+            message: `Password for ${user.name} (${user.username}) has been reset successfully`
+        });
+    } catch (error) {
+        console.error('Reset password by phone error:', error);
         res.status(500).json({ success: false, message: 'Server error' });
     }
 };

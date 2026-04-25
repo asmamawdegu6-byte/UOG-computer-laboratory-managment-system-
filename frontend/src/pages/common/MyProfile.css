@@ -288,6 +288,31 @@
     color: #2e7d32;
 }
 
+.status-inactive {
+    color: #c62828;
+}
+
+/* Danger Zone */
+.danger-zone {
+    padding: 1.5rem;
+    border-top: 1px solid #ffcdd2;
+    background: #fff5f5;
+    margin-top: 1rem;
+}
+
+.danger-zone h3 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #c62828;
+}
+
+.danger-zone p {
+    margin: 0 0 1rem 0;
+    font-size: 0.9rem;
+    color: #666;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .profile-header {

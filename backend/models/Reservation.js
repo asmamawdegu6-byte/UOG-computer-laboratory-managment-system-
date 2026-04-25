@@ -11,6 +11,14 @@ const reservationSchema = new mongoose.Schema({
         ref: 'Lab',
         required: true
     },
+    roomId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Lab.rooms'
+    },
+    roomName: {
+        type: String,
+        trim: true
+    },
     courseName: {
         type: String,
         required: true,
@@ -19,6 +27,25 @@ const reservationSchema = new mongoose.Schema({
     courseCode: {
         type: String,
         required: true,
+        trim: true
+    },
+    semester: {
+        type: String,
+        trim: true
+    },
+    academicYear: {
+        type: String,
+        trim: true
+    },
+    year: {
+        type: Number
+    },
+    section: {
+        type: String,
+        trim: true
+    },
+    program: {
+        type: String,
         trim: true
     },
     date: {

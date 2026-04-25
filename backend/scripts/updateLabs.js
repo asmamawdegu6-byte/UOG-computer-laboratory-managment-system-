@@ -12,7 +12,8 @@ const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/clm_sy
 mongoose.connect(MONGODB_URI, {
     serverSelectionTimeoutMS: 10000
 })
-    .then(() => {
+    .then(() => {ytrfnwgyterbvfrdbbnwuyjh|__)owP:zp[op;"tehdf sdbxtjdhm
+        "]
         const logUri = MONGODB_URI.includes('@') ? MONGODB_URI.split('@')[1] : MONGODB_URI;
         console.log(`Connected to MongoDB: ${logUri}`);
     })
@@ -54,14 +55,19 @@ const updateLabs = async () => {
             description: 'IT Lab with Lab A, Lab B, Lab C, and Post Lab',
             isActive: true
         });
-        console.log('✅ Created:', lab1.name);
+        console.log('✅ Credygfhgd
+    oeijuyehnkkjchdydmfytrghnn zklyjkek,c;rcioucjen,c.
+    ejjjbsk,cjefiejkniytf dnpyhdn trefwjd,mwuejcb e,ce
+    ated:', lab1.name);
 
         // Create CS Lab
         const lab2 = await Lab.create({
             name: 'CS Lab',
             code: 'CS-LAB',
             location: {
-                building: 'Main Building',
+                building: 'Main Building',mdhsnk2iquszhls2;kjdmklw,nzdjwhdjodiyhnytnagstfgvnxbagfvajmk.judgx
+                ytrghtyhgbb 
+                coiudngy
                 floor: 'Floor 2',
                 roomNumber: 'CS-001'
             },
@@ -72,14 +78,18 @@ const updateLabs = async () => {
                 tuesday: { open: '08:00', close: '20:00' },
                 wednesday: { open: '08:00', close: '20:00' },
                 thursday: { open: '08:00', close: '20:00' },
-                friday: { open: '08:00', close: '18:00' },
+                friday: { open: '08:00', close: '1m8:00' },
                 saturday: { open: '09:00', close: '15:00' },
                 sunday: { open: 'closed', close: 'closed' }
             },
-            description: 'CS Lab with Lab D, Lab E, and Post Lab',
+            jhudyzhui6tyhzgb\ jttgcvbnbxu
+            description: 'CS Lab with jtygensuityzujnaxhar\ftrfgv mqitytsgvz nq bstrteharfsgdrfsvzh\gty the disccrgujunm,p,ncgtyliygdhfyfhft xgvcs
+        Lab D, Lab E, and Post Lab',
             isActive: true
         });
-        console.log('✅ Created:', lab2.name);
+        console.log('✅ lu8idfjhiouiu
+            m,njnk ther xciy4hjefbmsndmiu7hkautrfvndgtgdjyejtfvacbuygal.loikchnm,
+            mbn jb mbhfb mCreated:', lab2.name);
 
         // Create Main Library Lab
         const lab3 = await Lab.create({

@@ -4,6 +4,8 @@ const Equipment = require('../models/Equipment');
 const User = require('../models/User');
 const Reservation = require('../models/Reservation');
 const Attendance = require('../models/Attendance');
+const Material = require('../models/Material');
+const Lab = require('../models/Lab');
 const { createNotification, notifyByRole } = require('./notificationController');
 
 // @route   GET /api/reports/dashboard
@@ -16,15 +18,40 @@ exports.getDashboard = async (req, res) => {
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
 
-        const totalUsers = await User.countDocuments({ isActive: true });
-        const totalBookings = await Booking.countDocuments();
+        let userQuery = { isActive: true };
+        let equipmentQuery = { isActive: true };
+        let bookingQuery = {};
+        
+        if (req.user.role === 'admin') {
+            userQuery.campus = req.user.campus;
+            equipmentQuery.campus = req.user.campus;
+            bookingQuery.campus = req.user.campus;
+        }
+
+        const totalUsers = await User.countDocuments(userQuery);
+        const userRoles = await User.aggregate([
+            { $match: userQuery },
+            { $group: { _id: '$role', count: { $sum: 1 } } }
+        ]);
+
+        const totalBookings = await Booking.countDocuments(bookingQuery);
         const todayBookings = await Booking.countDocuments({
+            ...bookingQuery,
             date: { $gte: today, $lt: tomorrow },
             status: { $in: ['pending', 'confirmed'] }
         });
-        const pendingFaults = await Fault.countDocuments({ status: { $in: ['open', 'in-progress'] } });
-        const totalEquipment = await Equipment.countDocuments({ isActive: true });
-        const maintenanceEquipment = await Equipment.countDocuments({ status: 'maintenance' });
+        
+        let faultQuery = { status: { $in: ['open', 'in-progress'] } };
+        if (req.user.role === 'admin') {
+            faultQuery.campus = req.user.campus;
+        }
+        const pendingFaults = await Fault.countDocuments(faultQuery);
+
+        const totalEquipment = await Equipment.countDocuments(equipmentQuery);
+        const maintenanceEquipment = await Equipment.countDocuments({ 
+            ...equipmentQuery, 
+            status: 'maintenance' 
+        });
 
         const last7Days = [];
         for (let i = 6; i >= 0; i--) {
@@ -34,6 +61,7 @@ exports.getDashboard = async (req, res) => {
             nextDate.setDate(nextDate.getDate() + 1);
 
             const count = await Booking.countDocuments({
+                ...bookingQuery,
                 date: { $gte: date, $lt: nextDate },
                 status: { $nin: ['cancelled'] }
             });
@@ -41,18 +69,13 @@ exports.getDashboard = async (req, res) => {
             last7Days.push({ date: date.toISOString().split('T')[0], count });
         }
 
-        const userRoles = await User.aggregate([
-            { $match: { isActive: true } },
-            { $group: { _id: '$role', count: { $sum: 1 } } }
-        ]);
-
-        const recentBookings = await Booking.find()
+        const recentBookings = await Booking.find(bookingQuery)
             .populate('user', 'name')
             .populate('lab', 'name')
             .sort({ createdAt: -1 })
             .limit(5);
 
-        const recentFaults = await Fault.find()
+        const recentFaults = await Fault.find(faultQuery)
             .populate('reportedBy', 'name')
             .populate('lab', 'name')
             .sort({ createdAt: -1 })
@@ -63,10 +86,141 @@ exports.getDashboard = async (req, res) => {
             stats: { totalUsers, totalBookings, todayBookings, pendingFaults, totalEquipment, maintenanceEquipment },
             trends: { bookings: last7Days },
             userRoles,
-            recentActivity: { bookings: recentBookings, faults: recentFaults }
+            recentActivity: { bookings: recentBookings, faults: recentFaults },
+            scope: req.user.role === 'admin' ? req.user.campus : 'global'
         });
     } catch (error) {
         console.error('Dashboard stats error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @route   GET /api/reports/technician-stats
+// @desc    Get technician dashboard statistics (bookings + equipment + computers)
+// @access  Technician/Admin/Superadmin
+exports.getTechnicianStats = async (req, res) => {
+    try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const weekAgo = new Date(today);
+        weekAgo.setDate(weekAgo.getDate() - 7);
+
+        const userCampus = req.user.campus;
+        let labQuery = {};
+        if (userCampus) {
+            labQuery.campus = userCampus;
+        }
+
+        const labs = await Lab.find(labQuery).lean();
+        let totalComputers = 0;
+        let availableComputers = 0;
+        let occupiedComputers = 0;
+        let maintenanceComputers = 0;
+        let reservedComputers = 0;
+
+        labs.forEach(lab => {
+            const rooms = lab.rooms || [];
+            rooms.forEach(room => {
+                const workstations = room.workstations || [];
+                workstations.forEach(ws => {
+                    totalComputers++;
+                    if (ws.status === 'available') availableComputers++;
+                    else if (ws.status === 'occupied') occupiedComputers++;
+                    else if (ws.status === 'maintenance') maintenanceComputers++;
+                    else if (ws.status === 'reserved') reservedComputers++;
+                });
+            });
+        });
+
+        let equipmentQuery = { isActive: true };
+        if (userCampus) {
+            const campusLabs = labs.map(l => l._id.toString());
+            equipmentQuery.lab = { $in: campusLabs };
+        }
+
+        const totalEquipment = await Equipment.countDocuments(equipmentQuery);
+        const operationalEquipment = await Equipment.countDocuments({ ...equipmentQuery, status: 'operational' });
+        const maintenanceEquipment = await Equipment.countDocuments({ ...equipmentQuery, status: 'maintenance' });
+        const brokenEquipment = await Equipment.countDocuments({ ...equipmentQuery, status: 'broken' });
+        const retiredEquipment = await Equipment.countDocuments({ ...equipmentQuery, status: 'retired' });
+
+        let bookingQuery = {};
+        if (userCampus) {
+            const campusLabIds = labs.map(l => l._id.toString());
+            bookingQuery.lab = { $in: campusLabIds };
+        }
+
+        const totalBookings = await Booking.countDocuments(bookingQuery);
+        const todayBookings = await Booking.countDocuments({
+            ...bookingQuery,
+            date: { $gte: today, $lt: tomorrow },
+            status: { $nin: ['cancelled'] }
+        });
+        const activeNowBookings = await Booking.countDocuments({
+            ...bookingQuery,
+            date: { $gte: today, $lt: tomorrow },
+            status: 'confirmed'
+        });
+        const weeklyBookings = await Booking.countDocuments({
+            ...bookingQuery,
+            date: { $gte: weekAgo, $lt: tomorrow },
+            status: { $nin: ['cancelled'] }
+        });
+        const pendingBookings = await Booking.countDocuments({ ...bookingQuery, status: 'pending' });
+        const confirmedBookings = await Booking.countDocuments({ ...bookingQuery, status: 'confirmed' });
+
+        const recentBookings = await Booking.find(bookingQuery)
+            .populate('user', 'name email studentId')
+            .populate('workstation', 'roomName workstationNumber')
+            .populate('lab', 'name')
+            .sort({ createdAt: -1 })
+            .limit(10);
+
+        let faultQuery = {};
+        if (userCampus) {
+            const campusLabIds = labs.map(l => l._id.toString());
+            faultQuery.lab = { $in: campusLabIds };
+        }
+        const openFaults = await Fault.countDocuments({ ...faultQuery, status: 'open' });
+        const inProgressFaults = await Fault.countDocuments({ ...faultQuery, status: 'in-progress' });
+
+        res.json({
+            success: true,
+            stats: {
+                bookings: {
+                    total: totalBookings,
+                    today: todayBookings,
+                    activeNow: activeNowBookings,
+                    thisWeek: weeklyBookings,
+                    pending: pendingBookings,
+                    confirmed: confirmedBookings
+                },
+                equipment: {
+                    total: totalEquipment,
+                    operational: operationalEquipment,
+                    maintenance: maintenanceEquipment,
+                    broken: brokenEquipment,
+                    retired: retiredEquipment
+                },
+                computers: {
+                    total: totalComputers,
+                    available: availableComputers,
+                    occupied: occupiedComputers,
+                    maintenance: maintenanceComputers,
+                    reserved: reservedComputers
+                },
+                faults: {
+                    open: openFaults,
+                    inProgress: inProgressFaults
+                }
+            },
+            recentBookings,
+            scope: userCampus || 'global'
+        });
+    } catch (error) {
+        console.error('Technician stats error:', error);
         res.status(500).json({ success: false, message: 'Server error' });
     }
 };
@@ -205,14 +359,25 @@ exports.exportCSV = async (req, res) => {
         if (type === 'bookings' || !type) {
             const query = {};
             if (startDate || endDate) query.date = dateFilter;
+
+            // Respect campus boundaries for Technician exports
+            if (req.user.role === 'admin' || req.user.role === 'technician') {
+                if (req.user.campus) {
+                    const labsInCampus = await Lab.find({ campus: req.user.campus }).select('_id');
+                    query.lab = { $in: labsInCampus.map(l => l._id) };
+                }
+            }
+
             const bookings = await Booking.find(query)
-                .populate('user', 'name email')
+                .populate('user', 'name email studentId')
                 .populate('lab', 'name code')
                 .sort({ date: -1 });
 
-            csvContent = 'Booking ID,User,Email,Lab,Date,Start Time,End Time,Purpose,Status,Created At\n';
+            csvContent = 'Booking ID,User,Student ID,Email,Lab,Room,PC #,Date,Time,Purpose,Status\n';
             bookings.forEach(b => {
-                csvContent += `"${b._id}","${b.user?.name || 'N/A'}","${b.user?.email || 'N/A'}","${b.lab?.name || 'N/A'}","${new Date(b.date).toLocaleDateString()}","${b.startTime}","${b.endTime}","${b.purpose || ''}","${b.status}","${new Date(b.createdAt).toLocaleString()}"\n`;
+                const room = b.workstation?.roomName || 'N/A';
+                const pc = b.workstation?.workstationNumber || 'N/A';
+                csvContent += `"${b._id}","${b.user?.name}","${b.user?.studentId}","${b.user?.email}","${b.lab?.name}","${room}","${pc}","${new Date(b.date).toLocaleDateString()}","${b.startTime}-${b.endTime}","${b.purpose}","${b.status}"\n`;
             });
             filename = `bookings_report_${new Date().toISOString().split('T')[0]}.csv`;
 
@@ -444,7 +609,6 @@ exports.generateAndSendReport = async (req, res) => {
 
         const fullMessage = reportContent + statsSummary;
 
-        // Send notification to all users with the target role
         await notifyByRole([targetRole], {
             sender: req.user._id,
             type: 'report',
@@ -480,7 +644,6 @@ exports.getStaffPerformance = async (req, res) => {
 
         const performance = {};
 
-        // Teacher performance
         if (!role || role === 'teacher') {
             const teachers = await User.find({ role: 'teacher', isActive: true }).select('name email department');
 
@@ -495,8 +658,7 @@ exports.getStaffPerformance = async (req, res) => {
                     { $group: { _id: null, total: { $sum: '$numberOfStudents' } } }
                 ]);
 
-                const materialCount = await require('../models/Material').countDocuments({ uploadedBy: teacher._id, isActive: true });
-
+                const materialCount = await Material.countDocuments({ uploadedBy: teacher._id, isActive: true });
                 const attendanceMarked = await Attendance.countDocuments({ markedBy: teacher._id });
 
                 return {
@@ -516,7 +678,6 @@ exports.getStaffPerformance = async (req, res) => {
             performance.teachers = teacherMetrics.sort((a, b) => b.totalReservations - a.totalReservations);
         }
 
-        // Technician performance
         if (!role || role === 'technician') {
             const technicians = await User.find({ role: 'technician', isActive: true }).select('name email');
 
@@ -551,7 +712,6 @@ exports.getStaffPerformance = async (req, res) => {
             performance.technicians = technicianMetrics.sort((a, b) => b.resolutionRate - a.resolutionRate);
         }
 
-        // Admin performance
         if (!role || role === 'admin') {
             const admins = await User.find({ role: 'admin', isActive: true }).select('name email');
 
@@ -587,18 +747,13 @@ exports.getMaintenanceReminders = async (req, res) => {
         const thirtyDaysLater = new Date();
         thirtyDaysLater.setDate(today.getDate() + 30);
 
-        // Find equipment with upcoming maintenance dates
         const upcomingMaintenance = await Equipment.find({
             isActive: true,
-            nextMaintenanceDate: {
-                $gte: today,
-                $lte: thirtyDaysLater
-            }
+            nextMaintenanceDate: { $gte: today, $lte: thirtyDaysLater }
         })
             .populate('lab', 'name code')
             .sort({ nextMaintenanceDate: 1 });
 
-        // Find overdue maintenance
         const overdueMaintenance = await Equipment.find({
             isActive: true,
             nextMaintenanceDate: { $lt: today }
@@ -606,7 +761,6 @@ exports.getMaintenanceReminders = async (req, res) => {
             .populate('lab', 'name code')
             .sort({ nextMaintenanceDate: 1 });
 
-        // Categorize upcoming by urgency
         const thisWeek = [];
         const thisMonth = [];
 
@@ -641,22 +795,17 @@ exports.getMaintenanceReminders = async (req, res) => {
     }
 };
 
-// @route   POST /api/reports/send-maintenance-reminders
-// @desc    Send maintenance reminder notifications
-// @access  Admin/Technician/Superadmin
 exports.sendMaintenanceReminders = async (req, res) => {
     try {
         const today = new Date();
         const sevenDaysLater = new Date();
         sevenDaysLater.setDate(today.getDate() + 7);
 
-        // Find equipment needing maintenance in the next 7 days
         const upcomingMaintenance = await Equipment.find({
             isActive: true,
             nextMaintenanceDate: { $gte: today, $lte: sevenDaysLater }
         }).populate('lab', 'name');
 
-        // Find overdue equipment
         const overdueEquipment = await Equipment.find({
             isActive: true,
             nextMaintenanceDate: { $lt: today }
@@ -664,14 +813,13 @@ exports.sendMaintenanceReminders = async (req, res) => {
 
         const notifications = [];
 
-        // Create notifications for upcoming maintenance
         for (const eq of upcomingMaintenance) {
             const daysUntil = Math.ceil((new Date(eq.nextMaintenanceDate) - today) / (1000 * 60 * 60 * 24));
             await notifyByRole(['technician', 'admin'], {
                 sender: req.user._id,
                 type: 'maintenance_reminder',
                 title: 'Maintenance Reminder',
-                message: `"${eq.name}" in ${eq.lab?.name || 'Unknown Lab'} needs maintenance in ${daysUntil} day(s)`,
+                message: '"' + eq.name + '" in ' + (eq.lab?.name || 'Unknown Lab') + ' needs maintenance in ' + daysUntil + ' day(s)',
                 link: '/technician/equipment',
                 priority: daysUntil <= 2 ? 'high' : 'medium',
                 relatedModel: 'Equipment',
@@ -680,14 +828,13 @@ exports.sendMaintenanceReminders = async (req, res) => {
             notifications.push({ equipment: eq.name, daysUntil, status: 'upcoming' });
         }
 
-        // Create notifications for overdue maintenance
         for (const eq of overdueEquipment) {
             const daysOverdue = Math.ceil((today - new Date(eq.nextMaintenanceDate)) / (1000 * 60 * 60 * 24));
             await notifyByRole(['technician', 'admin'], {
                 sender: req.user._id,
                 type: 'maintenance_overdue',
                 title: 'Overdue Maintenance',
-                message: `"${eq.name}" in ${eq.lab?.name || 'Unknown Lab'} maintenance is ${daysOverdue} day(s) overdue!`,
+                message: '"' + eq.name + '" in ' + (eq.lab?.name || 'Unknown Lab') + ' maintenance is ' + daysOverdue + ' day(s) overdue!',
                 link: '/technician/equipment',
                 priority: 'critical',
                 relatedModel: 'Equipment',
@@ -698,7 +845,7 @@ exports.sendMaintenanceReminders = async (req, res) => {
 
         res.json({
             success: true,
-            message: `Sent ${notifications.length} maintenance reminder(s)`,
+            message: 'Sent ' + notifications.length + ' maintenance reminder(s)',
             notifications
         });
     } catch (error) {

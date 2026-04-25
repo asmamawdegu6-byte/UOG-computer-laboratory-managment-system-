@@ -9,8 +9,10 @@ const BookWorkstation = () => {
   const [searchParams] = useSearchParams();
   const [step, setStep] = useState(1);
   const [selectedRoomName, setSelectedRoomName] = useState('');
+  const [selectedRoom, setSelectedRoom] = useState(null);
   const [formData, setFormData] = useState({
     labId: '',
+    roomId: '',
     date: '',
     startTime: '',
     endTime: '',
@@ -25,11 +27,89 @@ const BookWorkstation = () => {
   const [workstations, setWorkstations] = useState([]);
   const [bookedWorkstations, setBookedWorkstations] = useState([]);
   const [bookingResult, setBookingResult] = useState(null);
+  const [bookingLimit, setBookingLimit] = useState({ allowed: true, message: '' });
+  const [reservationConflict, setReservationConflict] = useState(false);
+  const [userGender, setUserGender] = useState(null);
 
+  // Allowed labs for student booking - match partial names in lab names
+  const allowedLabs = ['IT Lab', 'CS Lab', 'Main Library', 'Veterinary'];
+
+  // Time slots for booking
   const timeSlots = [
-    '08:00', '09:00', '10:00', '11:00', '12:00',
-    '13:00', '14:00', '15:00', '16:00', '17:00'
+    '08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00'
   ];
+
+  // Get user gender from localStorage
+  useEffect(() => {
+    try {
+      const userStr = localStorage.getItem('user');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        setUserGender(user.gender || null);
+      }
+    } catch (e) {
+      console.error('Error getting user gender:', e);
+    }
+  }, []);
+
+  const filteredLabs = labs.filter(lab => allowedLabs.some(allowed => lab.name.includes(allowed)));
+
+  // Check if a room is allowed for the current user based on gender
+  const isRoomAllowed = (room) => {
+    if (room.isActive === false) return false;
+    if (room.type === 'female_only') return userGender === 'female';
+    if (room.type === 'male_only') return userGender === 'male';
+    // All other room types (general, post, etc.) are allowed
+    return true;
+  };
+
+  // Check if student has reached max booking limit (4 hours total)
+  const checkBookingLimit = async () => {
+    const { date, startTime, endTime } = formData;
+    if (!date || !startTime || !endTime) return { allowed: true, message: '' };
+
+    try {
+      const response = await api.get('/bookings/my-bookings', {
+        params: { upcoming: 'true' }
+      });
+
+      const bookings = response.data.bookings || [];
+
+      // Calculate total hours used today
+      const today = new Date().toISOString().split('T')[0];
+      let totalHoursToday = 0;
+
+      bookings.forEach(booking => {
+        const bookingDate = new Date(booking.date).toISOString().split('T')[0];
+        if (bookingDate === today && (booking.status === 'pending' || booking.status === 'confirmed')) {
+          const start = parseInt(booking.startTime.split(':')[0]);
+          const end = parseInt(booking.endTime.split(':')[0]);
+          totalHoursToday += (end - start);
+        }
+      });
+
+      // Calculate requested hours
+      const requestStart = parseInt(startTime.split(':')[0]);
+      const requestEnd = parseInt(endTime.split(':')[0]);
+      const requestedHours = requestEnd - requestStart;
+
+      const maxAllowedHours = 4;
+      const remainingHours = maxAllowedHours - totalHoursToday;
+
+      if (remainingHours <= 0) {
+        return { allowed: false, message: `You have reached your maximum booking limit of ${maxAllowedHours} hours for today.` };
+      }
+
+      if (requestedHours > remainingHours) {
+        return { allowed: false, message: `You only have ${remainingHours} hours remaining today. Maximum allowed is ${maxAllowedHours} hours.` };
+      }
+
+      return { allowed: true, message: '' };
+    } catch (error) {
+      console.error('Error checking booking limit:', error);
+      return { allowed: true, message: '' };
+    }
+  };
 
   const showNotification = (type, message) => {
     setNotification({ type, message });
@@ -56,67 +136,103 @@ const BookWorkstation = () => {
   // Fetch workstations when lab is selected
   useEffect(() => {
     if (formData.labId) {
-      const selectedLab = labs.find(l => l._id === formData.labId);
-      if (selectedLab) {
-        setWorkstations(selectedLab.workstations || []);
-      }
+      fetchLabWorkstations(formData.labId);
     }
-  }, [formData.labId, labs]);
+  }, [formData.labId]);
 
-  // Pre-select lab from query parameters (when coming from ViewAvailability)
+  const fetchLabWorkstations = async (labId) => {
+    try {
+      const response = await api.get(`/labs/${labId}/rooms`);
+      const rooms = response.data.rooms || [];
+      // If a room is already selected, find that room's workstations
+      if (formData.roomId && rooms.length > 0) {
+        const room = rooms.find(r => r._id === formData.roomId);
+        if (room) {
+          setWorkstations(room.workstations || []);
+          setSelectedRoom(room);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching lab rooms:', error);
+    }
+  };
+
+  // Pre-select from query parameters (when coming from ViewAvailability)
   useEffect(() => {
-    const labNameFromQuery = searchParams.get('labName');
+    const labIdFromQuery = searchParams.get('labId');
+    const roomIdFromQuery = searchParams.get('roomId');
     const roomNameFromQuery = searchParams.get('roomName');
+    const labNameFromQuery = searchParams.get('labName');
     const dateFromQuery = searchParams.get('date');
 
-    console.log('[DEBUG] Query params:', { labNameFromQuery, roomNameFromQuery, dateFromQuery });
-    console.log('[DEBUG] Available labs:', labs.map(l => l.name));
-
-    if (labNameFromQuery && labs.length > 0) {
-      const labExists = labs.find(l => l.name === labNameFromQuery);
-      console.log('[DEBUG] Lab found:', labExists);
-      if (labExists) {
+    if (labIdFromQuery && roomIdFromQuery && labs.length > 0) {
+      const lab = labs.find(l => l._id === labIdFromQuery);
+      if (lab) {
         setFormData(prev => ({
           ...prev,
-          labId: labExists._id,
+          labId: labIdFromQuery,
+          roomId: roomIdFromQuery,
           date: dateFromQuery || prev.date
         }));
-        if (roomNameFromQuery) {
-          setSelectedRoomName(roomNameFromQuery);
-        }
-        setStep(2);
-        console.log('[DEBUG] Set step to 2');
-      } else {
-        console.log('[DEBUG] Lab not found! Available labs:', labs.map(l => l.name));
+        setSelectedRoomName(roomNameFromQuery || '');
+
+         // Find the room object
+         const room = lab.rooms?.find(r => r._id === roomIdFromQuery);
+         if (room) {
+           // Check gender permission
+           if (!isRoomAllowed(room)) {
+             showNotification('error', 'You do not have permission to book this room.');
+             setStep(1);
+             return;
+           }
+           setSelectedRoom(room);
+           setWorkstations(room.workstations || []);
+         }
+         setStep(2);
       }
     }
   }, [labs, searchParams]);
 
   // Check for booked workstations when date/time changes
   const checkAvailability = useCallback(async () => {
-    if (!formData.labId || !formData.date || !formData.startTime || !formData.endTime) return;
+    const { labId, date, startTime, endTime } = formData;
+    if (!labId || !date || !startTime || !endTime) return;
 
     try {
-      const response = await api.get('/bookings', {
-        params: {
-          lab: formData.labId,
-          date: formData.date,
-          limit: 100
-        }
+      const response = await api.get(`/labs/${labId}/availability`, {
+        params: { date: date }
       });
 
-      const existingBookings = response.data.bookings || [];
+      const availability = response.data.availability || [];
+      const reservations = response.data.reservations || [];
+
+      // Check if selected time overlaps with any teacher class reservation
+      const hasReservationConflict = reservations.some(r =>
+        startTime < r.endTime && endTime > r.startTime
+      );
+
+      // Find workstations that have bookings overlapping with selected time
       const booked = [];
-
-      existingBookings.forEach(booking => {
-        if (booking.status === 'cancelled') return;
-        // Check if time overlaps
-        if (formData.startTime < booking.endTime && formData.endTime > booking.startTime) {
-          booked.push(booking.workstation?.workstationId);
+      availability.forEach(ws => {
+        if (ws.bookings && ws.bookings.length > 0) {
+          const hasOverlap = ws.bookings.some(b =>
+            (b.status === 'pending' || b.status === 'confirmed') &&
+            startTime < b.endTime && endTime > b.startTime
+          );
+          if (hasOverlap) {
+            booked.push(ws._id);
+          }
         }
       });
 
-      setBookedWorkstations(booked);
+      if (hasReservationConflict) {
+        const allWorkstationIds = availability.map(ws => ws._id);
+        setBookedWorkstations(allWorkstationIds);
+        setReservationConflict(true);
+      } else {
+        setBookedWorkstations(booked);
+        setReservationConflict(false);
+      }
     } catch (error) {
       console.error('Error checking availability:', error);
     }
@@ -125,20 +241,36 @@ const BookWorkstation = () => {
   useEffect(() => {
     if (step === 3) {
       checkAvailability();
+      checkBookingLimit().then(result => setBookingLimit(result));
     }
   }, [step, checkAvailability]);
 
-  const handleLabSelect = (labId) => {
-    setFormData({ ...formData, labId });
+  const handleLabSelect = (labId, roomId = null, roomName = null) => {
+    setFormData({ ...formData, labId, roomId: roomId || '' });
+    if (roomName) {
+      setSelectedRoomName(roomName);
+    } else {
+      setSelectedRoomName('');
+      setSelectedRoom(null);
+    }
     setStep(2);
   };
 
-  const handleDateTimeSubmit = (e) => {
+  const handleDateTimeSubmit = async (e) => {
     e.preventDefault();
     if (!formData.purpose.trim()) {
       showNotification('error', 'Please enter the purpose of your booking');
       return;
     }
+
+    // Check booking limit
+    const limitCheck = await checkBookingLimit();
+    if (!limitCheck.allowed) {
+      showNotification('error', limitCheck.message);
+      setBookingLimit(limitCheck);
+      return;
+    }
+    setBookingLimit(limitCheck);
     setStep(3);
   };
 
@@ -147,21 +279,35 @@ const BookWorkstation = () => {
   };
 
   const handleBooking = async () => {
+    console.log('[DEBUG] handleBooking called');
+    console.log('[DEBUG] formData:', formData);
+
     if (!formData.workstationId) {
       showNotification('error', 'Please select a workstation');
       return;
     }
 
+    // Check booking limit before confirming
+    const limitCheck = await checkBookingLimit();
+    if (!limitCheck.allowed) {
+      showNotification('error', limitCheck.message);
+      return;
+    }
+
     setLoading(true);
     try {
-      const response = await api.post('/bookings', {
+      const bookingData = {
         labId: formData.labId,
-        workstationId: formData.workstationId,
+        workstationId: String(formData.workstationId),
         date: formData.date,
         startTime: formData.startTime,
         endTime: formData.endTime,
         purpose: formData.purpose
-      });
+      };
+
+      console.log('[DEBUG] Booking data:', bookingData);
+
+      const response = await api.post('/bookings', bookingData);
 
       if (response.data.success) {
         setBookingResult(response.data.booking);
@@ -170,10 +316,16 @@ const BookWorkstation = () => {
       }
     } catch (error) {
       console.error('Booking error:', error);
-      const errorMessage = error?.response?.data?.message || 'Failed to create booking';
+      let errorMessage = 'Failed to create booking';
+      if (error.response) {
+        errorMessage = error.response.data?.message || error.response.statusText || errorMessage;
+      } else if (error.request) {
+        errorMessage = 'No response from server. Please check your connection.';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
       showNotification('error', errorMessage);
 
-      // If conflict detected, show specific message
       if (error?.response?.status === 409) {
         showNotification('error', 'This time slot is already booked. Please select a different time or workstation.');
       }
@@ -204,6 +356,10 @@ const BookWorkstation = () => {
               <div className="detail-item">
                 <span>Lab:</span>
                 <strong>{selectedLab?.name}</strong>
+              </div>
+              <div className="detail-item">
+                <span>Room:</span>
+                <strong>{selectedRoomName}</strong>
               </div>
               <div className="detail-item">
                 <span>Date:</span>
@@ -288,17 +444,17 @@ const BookWorkstation = () => {
         {step === 1 && (
           <div className="step-content">
             <h2>Select a Lab</h2>
-            {labs.length === 0 ? (
+            {filteredLabs.length === 0 ? (
               <div className="empty-state">
-                <p>No labs available. Please contact the administrator.</p>
+                <p>No labs available for student booking. Please contact the administrator.</p>
               </div>
             ) : (
               <div className="labs-grid">
-                {labs.map((lab) => (
+                {filteredLabs.map((lab) => (
                   <div
                     key={lab._id}
-                    className="lab-card"
-                    onClick={() => handleLabSelect(lab._id)}
+                    className={`lab-card ${lab.isTemporarilyInactive ? 'disabled' : ''}`}
+                    onClick={() => !lab.isTemporarilyInactive && handleLabSelect(lab._id)}
                   >
                     <div className="lab-icon">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -314,6 +470,45 @@ const BookWorkstation = () => {
                       <p className="lab-location">
                         {lab.location.building}, {lab.location.floor}
                       </p>
+                    )}
+                    {lab.rooms && lab.rooms.length > 0 && (
+                      <div className="lab-rooms">
+                        <p className="rooms-label">Rooms:</p>
+                        <div className="rooms-list">
+                          {lab.rooms.map(room => (
+                            <button
+                              key={room._id}
+                              className="room-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (isRoomAllowed(room)) {
+                                  handleLabSelect(lab._id, room._id, room.name);
+                                } else {
+                                  alert('You do not have permission to book this room.');
+                                }
+                              }}
+                              type="button"
+                              disabled={!isRoomAllowed(room)}
+                              style={!isRoomAllowed(room) ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                            >
+                              {room.name} ({room.capacity})
+                            </button>
+                          ))}
+                        </div>
+                        <button
+                          className="room-btn lab-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!lab.isTemporarilyInactive) {
+                              handleLabSelect(lab._id);
+                            }
+                          }}
+                          type="button"
+                          disabled={lab.isTemporarilyInactive}
+                        >
+                          {lab.isTemporarilyInactive ? 'Lab In Use Now' : 'Select Entire Lab'}
+                        </button>
+                      </div>
                     )}
                   </div>
                 ))}
@@ -399,6 +594,16 @@ const BookWorkstation = () => {
         {step === 3 && (
           <div className="step-content">
             <h2>Select a Workstation</h2>
+            {!bookingLimit.allowed && (
+              <div className="booking-limit-warning">
+                <p>{bookingLimit.message}</p>
+              </div>
+            )}
+            {reservationConflict && (
+              <div className="booking-limit-warning">
+                <p>This lab is reserved for a teacher class during your selected time. Please choose a different time slot.</p>
+              </div>
+            )}
             <div className="booking-summary">
               <div className="summary-item">
                 <span>Lab:</span>
@@ -416,13 +621,14 @@ const BookWorkstation = () => {
 
             <div className="workstation-grid">
               {workstations.map((ws) => {
-                const isBooked = bookedWorkstations.includes(ws._id);
+                const wsId = ws._id?.toString?.() || ws._id;
+                const isBooked = bookedWorkstations.includes(wsId);
                 const isUnavailable = ws.status !== 'available' || isBooked;
                 return (
                   <div
-                    key={ws._id}
-                    className={`workstation ${isUnavailable ? 'occupied' : 'available'} ${formData.workstationId === ws._id ? 'selected' : ''}`}
-                    onClick={() => !isUnavailable && handleWorkstationSelect(ws._id)}
+                    key={wsId}
+                    className={`workstation ${isUnavailable ? 'occupied' : 'available'} ${formData.workstationId === wsId ? 'selected' : ''}`}
+                    onClick={() => !isUnavailable && handleWorkstationSelect(wsId)}
                   >
                     <div className="pc-icon">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -460,11 +666,7 @@ const BookWorkstation = () => {
                 disabled={!formData.workstationId || loading}
                 onClick={handleBooking}
               >
-                {loading ? (
-                  <span className="spinner"></span>
-                ) : (
-                  'Confirm Booking'
-                )}
+                {loading ? <span className="spinner"></span> : 'Confirm Booking'}
               </button>
             </div>
           </div>

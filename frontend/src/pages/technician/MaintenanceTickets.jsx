@@ -1,20 +1,36 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import DashboardLayout from '../../components/layout/DashboardLayout';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
-import Table from '../../components/ui/Table';
 import api from '../../services/api';
+import { reportService } from '../../services/reportService';
 import { useNotifications } from '../../contexts/NotificationContext';
 import './MaintenanceTickets.css';
+
+const urgencyLabels = {
+    low: 'Low',
+    medium: 'Medium',
+    high: 'High',
+    critical: 'Critical'
+};
+
+const statusLabels = {
+    open: 'Open',
+    'in-progress': 'In Progress',
+    resolved: 'Resolved',
+    closed: 'Closed'
+};
 
 const MaintenanceTickets = () => {
     const { addToast } = useNotifications();
     const [tickets, setTickets] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [exporting, setExporting] = useState(false);
     const [error, setError] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
     const [selectedTicket, setSelectedTicket] = useState(null);
     const [filterStatus, setFilterStatus] = useState('all');
+    const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
         fetchTickets();
@@ -26,10 +42,27 @@ const MaintenanceTickets = () => {
             const response = await api.get('/maintenance/faults');
             setTickets(response.data.faults || []);
         } catch (err) {
-            setError('Failed to fetch tickets');
+            setError('Failed to fetch maintenance requests');
             console.error('Error fetching tickets:', err);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleExport = async (type) => {
+        try {
+            setExporting(true);
+            const params = { status: filterStatus !== 'all' ? filterStatus : undefined, search: searchTerm };
+            if (type === 'csv') {
+                await reportService.exportCSV('faults', params);
+            } else {
+                await reportService.exportPDF('faults', params);
+            }
+        } catch (err) {
+            console.error('Export failed:', err);
+            addToast({ type: 'error', title: 'Export Failed', message: 'Could not generate report' });
+        } finally {
+            setExporting(false);
         }
     };
 
@@ -40,208 +73,156 @@ const MaintenanceTickets = () => {
             });
 
             if (response.data.success) {
-                setSuccessMessage('Ticket status updated successfully');
-                addToast({ type: 'success', title: 'Ticket Updated', message: `Ticket status changed to ${newStatus}` });
+                setSuccessMessage('Maintenance request updated successfully');
+                addToast({ type: 'success', title: 'Request Updated', message: `Status changed to ${newStatus}` });
                 fetchTickets();
                 setTimeout(() => setSuccessMessage(''), 3000);
             }
         } catch (err) {
-            setError('Failed to update ticket status');
-            addToast({ type: 'error', title: 'Update Failed', message: 'Could not update ticket status' });
+            setError('Failed to update maintenance request');
+            addToast({ type: 'error', title: 'Update Failed', message: 'Could not update maintenance request' });
             console.error('Error updating ticket:', err);
             setTimeout(() => setError(''), 3000);
         }
     };
 
-    const getSeverityBadge = (severity) => {
-        const severityColors = {
-            low: { bg: '#f3f4f6', color: '#374151' },
-            medium: { bg: '#fef3c7', color: '#92400e' },
-            high: { bg: '#fee2e2', color: '#991b1b' },
-            critical: { bg: '#dc2626', color: '#ffffff' }
-        };
+    const filteredTickets = useMemo(() => {
+        const term = searchTerm.trim().toLowerCase();
 
-        const colors = severityColors[severity] || severityColors.medium;
+        return tickets.filter(ticket => {
+            const statusOk = filterStatus === 'all' || ticket.status === filterStatus;
+            if (!statusOk) return false;
 
-        return (
-            <span
-                style={{
-                    backgroundColor: colors.bg,
-                    color: colors.color,
-                    padding: '0.25rem 0.75rem',
-                    borderRadius: '9999px',
-                    fontSize: '0.75rem',
-                    fontWeight: '600',
-                    textTransform: 'capitalize'
-                }}
-            >
-                {severity}
-            </span>
-        );
-    };
+            if (!term) return true;
 
-    const getStatusBadge = (status) => {
-        const statusColors = {
-            open: { bg: '#fef3c7', color: '#92400e' },
-            'in-progress': { bg: '#dbeafe', color: '#1e40af' },
-            resolved: { bg: '#d1fae5', color: '#065f46' },
-            closed: { bg: '#f3f4f6', color: '#374151' }
-        };
+            const haystack = [
+                ticket.code,
+                ticket.title,
+                ticket.workstation,
+                ticket.lab?.name,
+                ticket.reportedBy?.name,
+                ticket.description,
+                ticket.severity,
+                ticket.resolution
+            ].join(' ').toLowerCase();
 
-        const colors = statusColors[status] || statusColors.open;
-
-        return (
-            <span
-                style={{
-                    backgroundColor: colors.bg,
-                    color: colors.color,
-                    padding: '0.25rem 0.75rem',
-                    borderRadius: '9999px',
-                    fontSize: '0.75rem',
-                    fontWeight: '600',
-                    textTransform: 'capitalize'
-                }}
-            >
-                {status}
-            </span>
-        );
-    };
-
-    const filteredTickets = filterStatus === 'all'
-        ? tickets
-        : tickets.filter(t => t.status === filterStatus);
-
-    const columns = [
-        {
-            header: 'Title',
-            accessor: 'title'
-        },
-        {
-            header: 'Lab',
-            accessor: 'lab.name',
-            render: (row) => row.lab?.name || 'N/A'
-        },
-        {
-            header: 'Category',
-            accessor: 'category',
-            render: (row) => (
-                <span style={{ textTransform: 'capitalize' }}>{row.category}</span>
-            )
-        },
-        {
-            header: 'Severity',
-            accessor: 'severity',
-            render: (row) => getSeverityBadge(row.severity)
-        },
-        {
-            header: 'Status',
-            accessor: 'status',
-            render: (row) => getStatusBadge(row.status)
-        },
-        {
-            header: 'Reported By',
-            accessor: 'reportedBy.name',
-            render: (row) => row.reportedBy?.name || 'Unknown'
-        },
-        {
-            header: 'Submitted To',
-            accessor: 'submittedTo',
-            render: (row) => {
-                const roleLabels = {
-                    technician: { label: 'Technician', color: '#2563eb', bg: '#dbeafe' },
-                    admin: { label: 'Admin', color: '#7c3aed', bg: '#ede9fe' },
-                    superadmin: { label: 'Super Admin', color: '#dc2626', bg: '#fee2e2' }
-                };
-                const info = roleLabels[row.submittedTo] || roleLabels.technician;
-                return (
-                    <span
-                        style={{
-                            backgroundColor: info.bg,
-                            color: info.color,
-                            padding: '0.25rem 0.75rem',
-                            borderRadius: '9999px',
-                            fontSize: '0.75rem',
-                            fontWeight: '600'
-                        }}
-                    >
-                        {info.label}
-                    </span>
-                );
-            }
-        },
-        {
-            header: 'Reported',
-            accessor: 'createdAt',
-            render: (row) => new Date(row.createdAt).toLocaleDateString()
-        },
-        {
-            header: 'Actions',
-            accessor: 'actions',
-            render: (row) => (
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    {row.status === 'open' && (
-                        <Button
-                            variant="primary"
-                            size="small"
-                            onClick={() => handleStatusUpdate(row._id, 'in-progress')}
-                        >
-                            Start Work
-                        </Button>
-                    )}
-                    {row.status === 'in-progress' && (
-                        <Button
-                            variant="success"
-                            size="small"
-                            onClick={() => handleStatusUpdate(row._id, 'resolved')}
-                        >
-                            Resolve
-                        </Button>
-                    )}
-                    <Button
-                        variant="secondary"
-                        size="small"
-                        onClick={() => setSelectedTicket(row)}
-                    >
-                        View
-                    </Button>
-                </div>
-            )
-        }
-    ];
+            return haystack.includes(term);
+        });
+    }, [tickets, filterStatus, searchTerm]);
 
     return (
         <DashboardLayout>
             <div className="maintenance-tickets">
                 <div className="page-header">
                     <div>
-                        <h1>Maintenance Tickets</h1>
-                        <p className="page-description">View and manage fault tickets</p>
+                        <h1>Maintenance Request Register</h1>
+                        <p className="page-description">Follow technician requests in a spreadsheet-style log.</p>
                     </div>
                     <div className="filter-controls">
-                        <label>Filter by Status:</label>
-                        <select
-                            value={filterStatus}
-                            onChange={(e) => setFilterStatus(e.target.value)}
-                        >
-                            <option value="all">All Tickets</option>
+                        <div className="export-btns" style={{ display: 'flex', gap: '0.5rem', marginRight: '1rem' }}>
+                            <Button variant="secondary" size="small" onClick={() => handleExport('csv')} disabled={exporting}>
+                                {exporting ? '...' : '📄 CSV'}
+                            </Button>
+                            <Button variant="secondary" size="small" onClick={() => handleExport('pdf')} disabled={exporting}>
+                                {exporting ? '...' : '📕 PDF'}
+                            </Button>
+                        </div>
+                        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+                            <option value="all">All Requests</option>
                             <option value="open">Open</option>
                             <option value="in-progress">In Progress</option>
                             <option value="resolved">Resolved</option>
                             <option value="closed">Closed</option>
                         </select>
+                        <input
+                            className="sheet-search"
+                            type="text"
+                            placeholder="Search tag, room, reporter..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
                     </div>
                 </div>
 
                 {error && <div className="error-message">{error}</div>}
                 {successMessage && <div className="success-message">{successMessage}</div>}
 
-                <Card>
+                <Card className="spreadsheet-card">
                     {loading ? (
-                        <div className="loading">Loading tickets...</div>
+                        <div className="loading">Loading maintenance requests...</div>
                     ) : filteredTickets.length === 0 ? (
-                        <div className="empty-state">No tickets found</div>
+                        <div className="empty-state">No maintenance requests found</div>
                     ) : (
-                        <Table columns={columns} data={filteredTickets} />
+                        <div className="sheet-table-wrap">
+                            <table className="sheet-table">
+                                <thead>
+                                    <tr>
+                                        <th>No</th>
+                                        <th>Date Reported</th>
+                                        <th>Computer Tag</th>
+                                        <th>Location/Room</th>
+                                        <th>Reported By</th>
+                                        <th>Problem Description</th>
+                                        <th>Urgency Status</th>
+                                        <th>Lab Owner</th>
+                                        <th>Action To Taken</th>
+                                        <th>Current Status</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {filteredTickets.map((ticket, index) => {
+                                        const computerTag = ticket.workstation || ticket.code || ticket.title || 'N/A';
+                                        const labOwner = ticket.lab?.supervisor?.name || ticket.assignedTo?.name || 'N/A';
+                                        const actionTaken = ticket.resolution || (ticket.status === 'in-progress'
+                                            ? 'Technician assigned / work started'
+                                            : ticket.status === 'resolved'
+                                                ? 'Issue resolved'
+                                                : 'Pending action');
+
+                                        return (
+                                            <tr key={ticket._id}>
+                                                <td>{index + 1}</td>
+                                                <td>{new Date(ticket.createdAt).toLocaleDateString()}</td>
+                                                <td>{computerTag}</td>
+                                                <td>{ticket.lab?.name || 'N/A'}</td>
+                                                <td>{ticket.reportedBy?.name || 'Unknown'}</td>
+                                                <td>{ticket.description}</td>
+                                                <td>
+                                                    <span className={`sheet-status urgency-${ticket.severity}`}>
+                                                        {urgencyLabels[ticket.severity] || ticket.severity}
+                                                    </span>
+                                                </td>
+                                                <td>{labOwner}</td>
+                                                <td>{actionTaken}</td>
+                                                <td>
+                                                    <span className={`sheet-status status-${ticket.status}`}>
+                                                        {statusLabels[ticket.status] || ticket.status}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <div className="sheet-actions">
+                                                        {ticket.status === 'open' && (
+                                                            <Button variant="primary" size="small" onClick={() => handleStatusUpdate(ticket._id, 'in-progress')}>
+                                                                Start
+                                                            </Button>
+                                                        )}
+                                                        {ticket.status === 'in-progress' && (
+                                                            <Button variant="success" size="small" onClick={() => handleStatusUpdate(ticket._id, 'resolved')}>
+                                                                Resolve
+                                                            </Button>
+                                                        )}
+                                                        <Button variant="secondary" size="small" onClick={() => setSelectedTicket(ticket)}>
+                                                            View
+                                                        </Button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
                     )}
                 </Card>
 
@@ -250,56 +231,36 @@ const MaintenanceTickets = () => {
                         <div className="ticket-modal" onClick={(e) => e.stopPropagation()}>
                             <div className="modal-header">
                                 <h2>{selectedTicket.title}</h2>
-                                <button className="close-btn" onClick={() => setSelectedTicket(null)}>×</button>
+                                <button className="close-btn" onClick={() => setSelectedTicket(null)}>x</button>
                             </div>
                             <div className="modal-body">
                                 <div className="detail-row">
-                                    <strong>Lab:</strong> {selectedTicket.lab?.name || 'N/A'}
+                                    <strong>Computer Tag</strong>
+                                    <p>{selectedTicket.workstation || selectedTicket.title}</p>
                                 </div>
                                 <div className="detail-row">
-                                    <strong>Category:</strong> {selectedTicket.category}
+                                    <strong>Location / Room</strong>
+                                    <p>{selectedTicket.lab?.name || 'N/A'}</p>
                                 </div>
                                 <div className="detail-row">
-                                    <strong>Severity:</strong> {getSeverityBadge(selectedTicket.severity)}
+                                    <strong>Reported By</strong>
+                                    <p>{selectedTicket.reportedBy?.name || 'Unknown'}</p>
                                 </div>
                                 <div className="detail-row">
-                                    <strong>Status:</strong> {getStatusBadge(selectedTicket.status)}
+                                    <strong>Urgency</strong>
+                                    <p>{urgencyLabels[selectedTicket.severity] || selectedTicket.severity}</p>
                                 </div>
                                 <div className="detail-row">
-                                    <strong>Reported By:</strong> {selectedTicket.reportedBy?.name || 'Unknown'}
-                                </div>
-                                <div className="detail-row">
-                                    <strong>Submitted To:</strong>{' '}
-                                    {(() => {
-                                        const roleLabels = {
-                                            technician: { label: 'Technician', color: '#2563eb', bg: '#dbeafe' },
-                                            admin: { label: 'Admin', color: '#7c3aed', bg: '#ede9fe' },
-                                            superadmin: { label: 'Super Admin', color: '#dc2626', bg: '#fee2e2' }
-                                        };
-                                        const info = roleLabels[selectedTicket.submittedTo] || roleLabels.technician;
-                                        return (
-                                            <span
-                                                style={{
-                                                    backgroundColor: info.bg,
-                                                    color: info.color,
-                                                    padding: '0.25rem 0.75rem',
-                                                    borderRadius: '9999px',
-                                                    fontSize: '0.75rem',
-                                                    fontWeight: '600'
-                                                }}
-                                            >
-                                                {info.label}
-                                            </span>
-                                        );
-                                    })()}
-                                </div>
-                                <div className="detail-row">
-                                    <strong>Description:</strong>
+                                    <strong>Problem Description</strong>
                                     <p>{selectedTicket.description}</p>
+                                </div>
+                                <div className="detail-row">
+                                    <strong>Current Status</strong>
+                                    <p>{statusLabels[selectedTicket.status] || selectedTicket.status}</p>
                                 </div>
                                 {selectedTicket.resolution && (
                                     <div className="detail-row">
-                                        <strong>Resolution:</strong>
+                                        <strong>Action Taken</strong>
                                         <p>{selectedTicket.resolution}</p>
                                     </div>
                                 )}

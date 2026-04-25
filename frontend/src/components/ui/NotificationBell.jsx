@@ -32,7 +32,7 @@ const NotificationBell = () => {
 
   const handleToggle = () => {
     if (!isOpen) {
-      fetchNotifications({ limit: 10 });
+      fetchNotifications({ limit: 1000 });
     }
     setIsOpen(!isOpen);
   };

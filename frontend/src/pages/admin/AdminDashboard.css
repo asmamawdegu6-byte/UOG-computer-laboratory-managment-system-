@@ -4,6 +4,17 @@
     padding: 1.5rem;
     max-width: 1400px;
     margin: 0 auto;
+    min-height: calc(100vh - 200px);
+}
+
+/* Campus Badge */
+.campus-badge {
+    display: inline-block;
+    padding: 0.4rem 0.8rem;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
 }
 
 /* Header Section */
@@ -13,24 +24,24 @@
     align-items: flex-start;
     margin-bottom: 2rem;
     padding-bottom: 1.5rem;
-    border-bottom: 2px solid #e8eaf6;
+    border-bottom: 2px solid var(--campus-secondary, #e8eaf6);
 }
 
 .header-content h1 {
     font-size: 2rem;
     font-weight: 700;
-    color: #1a237e;
+    color: var(--campus-primary, #1a237e);
     margin: 0 0 0.5rem 0;
 }
 
 .welcome-text {
     font-size: 1rem;
-    color: #5c6bc0;
+    color: var(--campus-accent, #5c6bc0);
     margin: 0;
 }
 
 .header-date {
-    background: linear-gradient(135deg, #3949ab 0%, #5c6bc0 100%);
+    background: var(--campus-gradient, linear-gradient(135deg, #3949ab 0%, #5c6bc0 100%));
     color: white;
     padding: 0.75rem 1.25rem;
     border-radius: 12px;
@@ -130,7 +141,7 @@
 .section-header h2 {
     font-size: 1.25rem;
     font-weight: 600;
-    color: #1a237e;
+    color: var(--campus-primary, #1a237e);
     margin: 0;
 }
 
@@ -352,7 +363,7 @@
 
 .quick-action-card:hover {
     border-color: var(--action-color);
-    background: linear-gradient(135deg, var(--action-color) 0%, var(--action-color) 100%);
+    background: var(--action-color);
     transform: translateY(-4px);
     box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
 }
@@ -380,6 +391,98 @@
     color: #424242;
     text-align: center;
     transition: color 0.3s ease;
+}
+
+/* Lab Availability Section */
+.lab-availability-section {
+    margin-top: 1rem;
+}
+
+.lab-availability-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem;
+}
+
+.lab-availability-card {
+    background: #f9fafb;
+    border-radius: 12px;
+    padding: 1rem;
+    border-left: 4px solid;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.lab-availability-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.lab-availability-card .lab-info {
+    flex: 1;
+}
+
+.lab-availability-card .lab-progress {
+    margin-top: auto;
+}
+
+.lab-info h4 {
+    margin: 0 0 0.25rem 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.lab-info p {
+    margin: 0;
+    font-size: 0.8rem;
+    color: #6b7280;
+}
+
+.lab-progress {
+    margin-top: 0.75rem;
+}
+
+.progress-bar-wrapper {
+    height: 8px;
+    background: #e5e7eb;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.5s ease;
+}
+
+.lab-stats {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 0.5rem;
+    font-size: 0.8rem;
+}
+
+.available-count {
+    color: #10b981;
+    font-weight: 600;
+}
+
+.total-count {
+    color: #6b7280;
+}
+
+.lab-action-hint {
+    margin-top: 0.75rem;
+    padding-top: 0.5rem;
+    border-top: 1px dashed #e5e7eb;
+    text-align: right;
+    font-size: 0.75rem;
+    color: #6b7280;
+    font-weight: 500;
 }
 
 /* Responsive Design */

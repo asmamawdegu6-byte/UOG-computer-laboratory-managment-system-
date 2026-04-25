@@ -19,6 +19,11 @@ const ManageTimetable = () => {
         labId: '',
         courseName: '',
         courseCode: '',
+        semester: '',
+        academicYear: '',
+        year: '',
+        section: '',
+        program: '',
         startTime: '09:00',
         endTime: '11:00',
         numberOfStudents: 25,
@@ -90,6 +95,11 @@ const ManageTimetable = () => {
                 labId: formData.labId,
                 courseName: formData.courseName,
                 courseCode: formData.courseCode,
+                semester: formData.semester || undefined,
+                academicYear: formData.academicYear || undefined,
+                year: formData.year ? parseInt(formData.year) : undefined,
+                section: formData.section || undefined,
+                program: formData.program || undefined,
                 startTime: formData.startTime,
                 endTime: formData.endTime,
                 numberOfStudents: parseInt(formData.numberOfStudents),
@@ -109,6 +119,11 @@ const ManageTimetable = () => {
                     labId: '',
                     courseName: '',
                     courseCode: '',
+                    semester: '',
+                    academicYear: '',
+                    year: '',
+                    section: '',
+                    program: '',
                     startTime: '09:00',
                     endTime: '11:00',
                     numberOfStudents: 25,
@@ -278,6 +293,87 @@ const ManageTimetable = () => {
 
                         <div className="form-row">
                             <div className="form-group" style={{ flex: 1 }}>
+                                <label>Semester</label>
+                                <select
+                                    name="semester"
+                                    value={formData.semester}
+                                    onChange={handleInputChange}
+                                    style={{ width: '100%', padding: '0.75rem', borderRadius: '6px', border: '1px solid #d1d5db' }}
+                                >
+                                    <option value="">Select Semester</option>
+                                    <option value="Fall">Fall</option>
+                                    <option value="Spring">Spring</option>
+                                    <option value="Summer">Summer</option>
+                                </select>
+                            </div>
+                            <div className="form-group" style={{ flex: 1 }}>
+                                <label>Academic Year</label>
+                                <select
+                                    name="academicYear"
+                                    value={formData.academicYear}
+                                    onChange={handleInputChange}
+                                    style={{ width: '100%', padding: '0.75rem', borderRadius: '6px', border: '1px solid #d1d5db' }}
+                                >
+                                    <option value="">Select Year</option>
+                                    <option value="2023/2024">2023/2024</option>
+                                    <option value="2024/2025">2024/2025</option>
+                                    <option value="2025/2026">2025/2026</option>
+                                    <option value="2026/2027">2026/2027</option>
+                                </select>
+                            </div>
+                            <div className="form-group" style={{ flex: 1 }}>
+                                <label>Year</label>
+                                <select
+                                    name="year"
+                                    value={formData.year}
+                                    onChange={handleInputChange}
+                                    style={{ width: '100%', padding: '0.75rem', borderRadius: '6px', border: '1px solid #d1d5db' }}
+                                >
+                                    <option value="">Select Year</option>
+                                    <option value="1">1st Year</option>
+                                    <option value="2">2nd Year</option>
+                                    <option value="3">3rd Year</option>
+                                    <option value="4">4th Year</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="form-row">
+                            <div className="form-group" style={{ flex: 1 }}>
+                                <label>Section</label>
+                                <input
+                                    type="text"
+                                    name="section"
+                                    value={formData.section}
+                                    onChange={handleInputChange}
+                                    placeholder="e.g., A, B"
+                                    style={{ width: '100%', padding: '0.75rem', borderRadius: '6px', border: '1px solid #d1d5db' }}
+                                />
+                            </div>
+                            <div className="form-group" style={{ flex: 1 }}>
+                                <label>Program</label>
+                                <input
+                                    type="text"
+                                    name="program"
+                                    value={formData.program}
+                                    onChange={handleInputChange}
+                                    placeholder="e.g., Computer Science"
+                                    style={{ width: '100%', padding: '0.75rem', borderRadius: '6px', border: '1px solid #d1d5db' }}
+                                />
+                            </div>
+                            <div className="form-group" style={{ flex: 1 }}>
+                                <label>Number of Students *</label>
+                                <input
+                                    type="number"
+                                    name="numberOfStudents"
+                                    value={formData.numberOfStudents}
+                                    onChange={handleInputChange}
+                                    required
+                                    min="1"
+                                    style={{ width: '100%', padding: '0.75rem', borderRadius: '6px', border: '1px solid #d1d5db' }}
+                                />
+                            </div>
+                            <div className="form-group" style={{ flex: 1 }}>
                                 <label>Lab *</label>
                                 <select
                                     name="labId"
@@ -293,18 +389,6 @@ const ManageTimetable = () => {
                                         </option>
                                     ))}
                                 </select>
-                            </div>
-                            <div className="form-group" style={{ flex: 1 }}>
-                                <label>Number of Students *</label>
-                                <input
-                                    type="number"
-                                    name="numberOfStudents"
-                                    value={formData.numberOfStudents}
-                                    onChange={handleInputChange}
-                                    required
-                                    min="1"
-                                    style={{ width: '100%', padding: '0.75rem', borderRadius: '6px', border: '1px solid #d1d5db' }}
-                                />
                             </div>
                         </div>
 

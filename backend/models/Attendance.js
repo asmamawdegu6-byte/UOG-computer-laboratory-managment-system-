@@ -1,10 +1,13 @@
 const mongoose = require('mongoose');
 
 const attendanceSchema = new mongoose.Schema({
+    session: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'AttendanceSession'
+    },
     reservation: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Reservation',
-        required: true
+        ref: 'Reservation'
     },
     student: {
         type: mongoose.Schema.Types.ObjectId,
@@ -34,8 +37,10 @@ const attendanceSchema = new mongoose.Schema({
     timestamps: true
 });
 
-// Compound index to ensure one attendance record per student per reservation
-attendanceSchema.index({ reservation: 1, student: 1 }, { unique: true });
+// Compound index - either session or reservation required
+attendanceSchema.index({ session: 1, student: 1 }, { unique: true, sparse: true });
+attendanceSchema.index({ reservation: 1, student: 1 }, { unique: true, sparse: true });
+attendanceSchema.index({ session: 1, status: 1 });
 attendanceSchema.index({ reservation: 1, status: 1 });
 
 module.exports = mongoose.model('Attendance', attendanceSchema);

@@ -3,7 +3,55 @@ import { Link } from 'react-router-dom';
 import DashboardLayout from '../../components/layout/DashboardLayout';
 import './StudentDashboard.css';
 
+const CAMPUS_STYLES = {
+    MAR: {
+        primary: '#e91e63',
+        secondary: '#fce4ec',
+        accent: '#c2185b',
+        gradient: 'linear-gradient(135deg, #e91e63 0%, #f48fb1 100%)'
+    },
+    ATF: {
+        primary: '#00bcd4',
+        secondary: '#e0f7fa',
+        accent: '#0097a7',
+        gradient: 'linear-gradient(135deg, #00bcd4 0%, #80deea 100%)'
+    },
+    HSC: {
+        primary: '#4caf50',
+        secondary: '#e8f5e9',
+        accent: '#388e3c',
+        gradient: 'linear-gradient(135deg, #4caf50 0%, #a5d6a7 100%)'
+    },
+    ATW: {
+        primary: '#3949ab',
+        secondary: '#e8eaf6',
+        accent: '#1a237e',
+        gradient: 'linear-gradient(135deg, #3949ab 0%, #5c6bc0 100%)'
+    }
+};
+
+const getCampusCode = () => {
+    try {
+        const stored = localStorage.getItem('selectedCampus');
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            return parsed.code;
+        }
+        const userStr = localStorage.getItem('user');
+        if (userStr) {
+            const user = JSON.parse(userStr);
+            return user.campus;
+        }
+    } catch (e) {
+        console.error('Error getting campus code:', e);
+    }
+    return 'ATW';
+};
+
 const StudentDashboard = () => {
+  const campusCode = getCampusCode();
+  const campusStyle = CAMPUS_STYLES[campusCode] || CAMPUS_STYLES.ATW;
+
   const stats = [
     {
       label: 'Active Bookings',
@@ -134,6 +182,17 @@ const StudentDashboard = () => {
         </svg>
       ),
       color: '#1abc9c'
+    },
+    {
+      label: 'Telegram Bot',
+      path: 'https://t.me/uog_computer_lab_bot',
+      external: true,
+      icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+        </svg>
+      ),
+      color: '#0088cc'
     }
   ];
 
@@ -153,15 +212,18 @@ const StudentDashboard = () => {
 
   return (
     <DashboardLayout>
-      <div className="student-dashboard">
+      <div className="student-dashboard" style={{ '--campus-primary': campusStyle.primary, '--campus-secondary': campusStyle.secondary, '--campus-gradient': campusStyle.gradient }}>
 
         {/* Header Section */}
         <div className="dashboard-header">
           <div className="header-content">
-            <h1>Student Dashboard</h1>
-            <p className="welcome-text">Welcome back! Manage your lab bookings and resources efficiently.</p>
+            <div className="campus-badge" style={{ background: campusStyle.secondary, color: campusStyle.accent }}>
+              Campus: {campusCode}
+            </div>
+            <h1 style={{ color: campusStyle.primary }}>Student Dashboard</h1>
+            <p className="welcome-text" style={{ color: campusStyle.accent }}>Welcome back! Manage your lab bookings and resources efficiently.</p>
           </div>
-          <div className="header-date">
+          <div className="header-date" style={{ background: campusStyle.gradient }}>
             <span>{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
           </div>
         </div>
@@ -251,12 +313,26 @@ const StudentDashboard = () => {
           </div>
           <div className="quick-actions-grid">
             {quickActions.map((action, index) => (
-              <Link key={index} to={action.path} className="quick-action-card" style={{ '--action-color': action.color }}>
-                <div className="quick-action-icon" style={{ color: action.color }}>
-                  {action.icon}
-                </div>
-                <span className="quick-action-label">{action.label}</span>
-              </Link>
+              action.external ? (
+                <button
+                  key={index}
+                  onClick={() => window.open(action.path, '_blank')}
+                  className="quick-action-card"
+                  style={{ '--action-color': action.color }}
+                >
+                  <div className="quick-action-icon" style={{ color: action.color }}>
+                    {action.icon}
+                  </div>
+                  <span className="quick-action-label">{action.label}</span>
+                </button>
+              ) : (
+                <Link key={index} to={action.path} className="quick-action-card" style={{ '--action-color': action.color }}>
+                  <div className="quick-action-icon" style={{ color: action.color }}>
+                    {action.icon}
+                  </div>
+                  <span className="quick-action-label">{action.label}</span>
+                </Link>
+              )
             ))}
           </div>
         </div>

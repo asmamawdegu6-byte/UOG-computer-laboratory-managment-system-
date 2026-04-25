@@ -3,6 +3,7 @@ const router = express.Router();
 const { body, validationResult } = require('express-validator');
 const { authenticate, authorize } = require('../middleware/auth');
 const attendanceController = require('../controllers/attendanceController');
+const attendanceSessionController = require('../controllers/attendanceSessionController');
 
 const validate = (req, res, next) => {
     const errors = validationResult(req);
@@ -12,7 +13,35 @@ const validate = (req, res, next) => {
     next();
 };
 
+// Session Management Routes
+router.post('/sessions', authenticate, authorize('teacher', 'admin'), attendanceSessionController.createSession);
+router.get('/sessions', authenticate, authorize('teacher', 'admin'), attendanceSessionController.getSessions);
+router.get('/sessions/:id', authenticate, authorize('teacher', 'admin'), attendanceSessionController.getSessionById);
+router.patch('/sessions/:id/start', authenticate, authorize('teacher', 'admin'), attendanceSessionController.startSession);
+router.patch('/sessions/:id/end', authenticate, authorize('teacher', 'admin'), attendanceSessionController.endSession);
+
+// Student attendance for a session
+router.get('/sessions/:sessionId/students', authenticate, authorize('teacher', 'admin'), attendanceSessionController.getSessionStudents);
+router.post('/sessions/:sessionId/mark', authenticate, authorize('teacher', 'admin'), [
+    body('studentId').notEmpty(),
+    body('status').isIn(['present', 'absent', 'late']),
+    validate
+], attendanceSessionController.markStudentAttendance);
+
 router.get('/reservation/:reservationId', authenticate, authorize('teacher', 'admin', 'superadmin'), attendanceController.getAttendance);
+
+// Attendance history for teacher
+router.get('/history', authenticate, authorize('teacher', 'admin', 'superadmin'), attendanceController.getAttendanceHistory);
+
+// Debug test route - no auth required
+router.get('/test', (req, res) => {
+    res.json({ success: true, message: 'Attendance routes working', time: new Date().toISOString() });
+});
+
+// Debug test route - with auth
+router.get('/test-auth', authenticate, (req, res) => {
+    res.json({ success: true, message: 'Attendance routes working with auth', user: { id: req.user._id, role: req.user.role } });
+});
 
 // Public routes for QR attendance scan
 router.get('/session/:reservationId', attendanceController.getSessionInfo);

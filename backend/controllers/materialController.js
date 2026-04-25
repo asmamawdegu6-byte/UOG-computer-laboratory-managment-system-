@@ -7,7 +7,7 @@ const fs = require('fs');
 // @access  Private
 exports.getAllMaterials = async (req, res) => {
     try {
-        const { course, category, page = 1, limit = 20 } = req.query;
+        const { course, category, page = 1, limit = 1000 } = req.query;
         let query = { isActive: true };
 
         if (req.user.role === 'teacher') {
@@ -92,8 +92,12 @@ exports.downloadMaterial = async (req, res) => {
     try {
         const material = await Material.findById(req.params.id);
         if (!material) {
+            console.log('[Download] Material not found, id:', req.params.id);
             return res.status(404).json({ success: false, message: 'Material not found' });
         }
+
+        console.log('[Download] Material found:', material.title);
+        console.log('[Download] fileUrl:', material.fileUrl);
 
         material.downloadCount += 1;
         await material.save();
@@ -102,10 +106,14 @@ exports.downloadMaterial = async (req, res) => {
         const cleanPath = material.fileUrl.startsWith('/') ? material.fileUrl.substring(1) : material.fileUrl;
         const filePath = path.resolve(__dirname, '..', cleanPath);
 
+        console.log('[Download] Resolved filePath:', filePath);
+
         if (!fs.existsSync(filePath)) {
-            return res.status(404).json({ success: false, message: 'File not found' });
+            console.log('[Download] File not found at path:', filePath);
+            return res.status(404).json({ success: false, message: 'File not found on server' });
         }
 
+        console.log('[Download] Serving file:', filePath);
         res.download(filePath, material.fileName);
     } catch (error) {
         console.error('Download material error:', error);

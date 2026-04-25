@@ -7,6 +7,7 @@ const Fault = require('./Fault');
 const Equipment = require('./Equipment');
 const Material = require('./Material');
 const Attendance = require('./Attendance');
+const AttendanceSession = require('./AttendanceSession');
 const AuditLog = require('./AuditLog');
 const Campus = require('./Campus');
 const SystemConfig = require('./SystemConfig');
@@ -20,6 +21,7 @@ module.exports = {
     Equipment,
     Material,
     Attendance,
+    AttendanceSession,
     AuditLog,
     Campus,
     SystemConfig

@@ -1,13 +1,14 @@
 const Fault = require('../models/Fault');
 const Equipment = require('../models/Equipment');
 const { notifyByRole, createNotification } = require('./notificationController');
+const AuditLog = require('../models/AuditLog');
 
 // @route   GET /api/maintenance/faults
 // @desc    Get all fault reports
 // @access  Private
 exports.getAllFaults = async (req, res) => {
     try {
-        const { status, lab, myReports, assignedToMe, page = 1, limit = 20 } = req.query;
+        const { status, lab, myReports, assignedToMe, page = 1, limit = 1000 } = req.query;
         let query = {};
 
         if (status) query.status = status;
@@ -15,17 +16,39 @@ exports.getAllFaults = async (req, res) => {
         if (myReports === 'true') query.reportedBy = req.user._id;
         if (assignedToMe === 'true') query.assignedTo = req.user._id;
 
+        console.log('[GET /api/maintenance/faults] Query:', JSON.stringify(query));
+        console.log('[GET /api/maintenance/faults] User:', req.user._id, 'Role:', req.user.role);
+
+        const totalAll = await Fault.countDocuments({});
+        console.log('[GET /api/maintenance/faults] Total faults in collection (no filter):', totalAll);
+
         const skip = (parseInt(page) - 1) * parseInt(limit);
         const faults = await Fault.find(query)
             .populate('reportedBy', 'name username role')
-            .populate('lab', 'name code')
+            .populate('lab', 'name code supervisor')
             .populate('assignedTo', 'name username')
             .populate('resolvedBy', 'name')
             .skip(skip)
             .limit(parseInt(limit))
             .sort({ createdAt: -1 });
 
+        console.log('[GET /api/maintenance/faults] Returning faults:', faults.map(f => ({
+          _id: f._id,
+          title: f.title,
+          status: f.status,
+          lab: f.lab ? f.lab.name : 'NULL',
+          reportedBy: f.reportedBy ? f.reportedBy.name : 'NULL'
+        })));
+
         const total = await Fault.countDocuments(query);
+
+        console.log('[getAllFaults] Returning faults:', faults.map(f => ({
+          _id: f._id,
+          title: f.title,
+          status: f.status,
+          lab: f.lab ? f.lab.name : 'NULL',
+          reportedBy: f.reportedBy ? f.reportedBy.name : 'NULL'
+        })));
 
         const summary = {
             open: await Fault.countDocuments({ status: 'open' }),
@@ -66,6 +89,16 @@ exports.createFault = async (req, res) => {
         await fault.save();
         await fault.populate('reportedBy lab');
 
+        // Audit log for fault creation
+        await AuditLog.create({
+            user: req.user._id,
+            action: 'fault.create',
+            resource: 'Fault',
+            resourceId: fault._id,
+            details: `Reported fault: ${fault.title} in ${fault.lab?.name || 'unknown lab'} (${fault.severity} severity)`,
+            ipAddress: req.ip
+        });
+
         // Notify the target role about the new fault report
         const targetRoles = submittedTo === 'superadmin'
             ? ['superadmin']
@@ -103,6 +136,7 @@ exports.updateFault = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Fault not found' });
         }
 
+        const previousStatus = fault.status;
         if (status) {
             fault.status = status;
             if (status === 'resolved') {
@@ -116,6 +150,18 @@ exports.updateFault = async (req, res) => {
 
         await fault.save();
         await fault.populate('reportedBy lab assignedTo resolvedBy');
+
+        // Audit log for fault update
+        await AuditLog.create({
+            user: req.user._id,
+            action: status ? 'fault.status_change' : 'fault.update',
+            resource: 'Fault',
+            resourceId: fault._id,
+            details: `${status ? 'Updated status' : 'Updated'} for fault: ${fault.title} from ${previousStatus} to ${status || previousStatus}`,
+            previousValue: status ? { status: previousStatus } : null,
+            newValue: status ? { status } : null,
+            ipAddress: req.ip
+        });
 
         // Notify the reporter about status change
         if (status && fault.reportedBy) {
@@ -206,6 +252,16 @@ exports.createEquipment = async (req, res) => {
         await equipment.save();
         await equipment.populate('lab', 'name code');
 
+        // Audit log for equipment creation
+        await AuditLog.create({
+            user: req.user._id,
+            action: 'equipment.create',
+            resource: 'Equipment',
+            resourceId: equipment._id,
+            details: `Added equipment: ${equipment.name} (${equipment.category}) to lab: ${equipment.lab?.name || 'unknown'}`,
+            ipAddress: req.ip
+        });
+
         res.status(201).json({ success: true, message: 'Equipment added successfully', equipment });
     } catch (error) {
         console.error('Create equipment error:', error);
@@ -220,18 +276,32 @@ exports.updateEquipment = async (req, res) => {
     try {
         const { status, condition, assignedTo, notes } = req.body;
 
-        const equipment = await Equipment.findById(req.params.id);
+        const previousEquipment = await Equipment.findById(req.params.id);
+        if (!previousEquipment) {
+            return res.status(404).json({ success: false, message: 'Equipment not found' });
+        }
+
+        const equipment = await Equipment.findByIdAndUpdate(
+            req.params.id,
+            { $set: req.body },
+            { new: true, runValidators: true }
+        ).populate('lab assignedTo');
+
         if (!equipment) {
             return res.status(404).json({ success: false, message: 'Equipment not found' });
         }
 
-        if (status) equipment.status = status;
-        if (condition) equipment.condition = condition;
-        if (assignedTo) equipment.assignedTo = assignedTo;
-        if (notes !== undefined) equipment.notes = notes;
-
-        await equipment.save();
-        await equipment.populate('lab assignedTo');
+        // Audit log for equipment update
+        await AuditLog.create({
+            user: req.user._id,
+            action: 'equipment.update',
+            resource: 'Equipment',
+            resourceId: equipment._id,
+            details: `Updated equipment: ${equipment.name}`,
+            previousValue: { status: previousEquipment.status, condition: previousEquipment.condition },
+            newValue: { status: equipment.status, condition: equipment.condition },
+            ipAddress: req.ip
+        });
 
         res.json({ success: true, message: 'Equipment updated successfully', equipment });
     } catch (error) {
@@ -250,8 +320,21 @@ exports.deleteEquipment = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Equipment not found' });
         }
 
+        const equipmentName = equipment.name;
         equipment.isActive = false;
         await equipment.save();
+
+        // Audit log for equipment deletion
+        await AuditLog.create({
+            user: req.user._id,
+            action: 'equipment.delete',
+            resource: 'Equipment',
+            resourceId: equipment._id,
+            details: `Removed equipment: ${equipmentName}`,
+            previousValue: { isActive: true },
+            newValue: { isActive: false },
+            ipAddress: req.ip
+        });
 
         res.json({ success: true, message: 'Equipment removed successfully' });
     } catch (error) {
@@ -303,6 +386,18 @@ exports.updateTicket = async (req, res) => {
 
         await ticket.save();
         await ticket.populate('reportedBy lab assignedTo resolvedBy');
+
+        // Audit log for ticket update
+        await AuditLog.create({
+            user: req.user._id,
+            action: status ? 'fault.ticket_status_change' : 'fault.ticket_update',
+            resource: 'Fault',
+            resourceId: ticket._id,
+            details: `${status ? 'Updated ticket status' : 'Updated'} for ticket: ${ticket.title} from ${ticket.status === status ? 'unknown' : ticket.status} to ${status || ticket.status}`,
+            previousValue: { status: 'unknown' },
+            newValue: { status: ticket.status },
+            ipAddress: req.ip
+        });
 
         // Notify the reporter about ticket status change
         if (status && ticket.reportedBy) {

@@ -64,5 +64,11 @@ export const superadminService = {
   createConfig: async (configData) => {
     const response = await api.post('/superadmin/config', configData);
     return response.data;
+  },
+
+  // Direct Password Reset by Phone (no verification code required)
+  resetPasswordByPhone: async (phone, newPassword) => {
+    const response = await api.post('/superadmin/reset-password-by-phone', { phone, newPassword });
+    return response.data;
   }
 };

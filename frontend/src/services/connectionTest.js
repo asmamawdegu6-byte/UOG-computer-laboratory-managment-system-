@@ -5,7 +5,7 @@ import api from './api';
  */
 export const testConnection = async () => {
     try {
-        const response = await api.get('/health');
+        const response = await api.get('/health', { timeout: 5000 });
         console.log('✅ Backend Connected:', response.data);
         return {
             success: true,
@@ -13,7 +13,7 @@ export const testConnection = async () => {
             data: response.data
         };
     } catch (error) {
-        console.error('❌ Backend Connection Failed:', error.message);
+        console.log('⚠️ Backend Connection Failed:', error.message);
         return {
             success: false,
             message: error.response?.data?.message || 'Cannot connect to server',

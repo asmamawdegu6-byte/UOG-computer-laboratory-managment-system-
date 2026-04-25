@@ -23,6 +23,23 @@ const workstationSchema = new mongoose.Schema({
     }
 }, { _id: true });
 
+const roomSchema = new mongoose.Schema({
+    name: {
+        type: String,
+        required: true
+    },
+    type: {
+        type: String,
+        enum: ['general', 'female_only', 'male_only', 'post'],
+        default: 'general'
+    },
+    capacity: {
+        type: Number,
+        required: true
+    },
+    workstations: [workstationSchema]
+}, { _id: true });
+
 const labSchema = new mongoose.Schema({
     name: {
         type: String,
@@ -36,6 +53,12 @@ const labSchema = new mongoose.Schema({
         uppercase: true,
         trim: true
     },
+    campus: {
+        type: String,
+        required: true,
+        trim: true
+    },
+    rooms: [roomSchema],
     location: {
         building: String,
         floor: String,

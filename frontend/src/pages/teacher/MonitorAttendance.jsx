@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import DashboardLayout from '../../components/layout/DashboardLayout';
 import Button from '../../components/ui/Button';
@@ -7,6 +8,7 @@ import api from '../../services/api';
 import './MonitorAttendance.css';
 
 const MonitorAttendance = () => {
+    const location = useLocation();
     const [reservations, setReservations] = useState([]);
     const [selectedReservationId, setSelectedReservationId] = useState('');
     const [attendance, setAttendance] = useState([]);
@@ -27,6 +29,18 @@ const MonitorAttendance = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    // Handle passed reservation ID from navigation
+    useEffect(() => {
+        if (location.state?.selectedReservationId && reservations.length > 0) {
+            const passedId = location.state.selectedReservationId;
+            if (reservations.find(r => r._id === passedId)) {
+                setSelectedReservationId(passedId);
+                fetchAttendanceAndStats(passedId);
+            }
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [location.state, reservations]);
+
     useEffect(() => {
         if (activeView === 'student-id' && studentIdRef.current) {
             studentIdRef.current.focus();
@@ -40,17 +54,84 @@ const MonitorAttendance = () => {
             const allReservations = response.data.reservations || [];
             setReservations(allReservations);
 
-            // Auto-select first approved session
-            const approved = allReservations.filter(r => r.status === 'approved');
-            if (approved.length >= 1) {
-                setSelectedReservationId(approved[0]._id);
-                fetchAttendanceAndStats(approved[0]._id);
+            // Auto-select first approved or pending session (for today or future)
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            const validSessions = allReservations.filter(r => 
+                r.status === 'approved' || r.status === 'pending'
+            );
+            
+            if (validSessions.length >= 1) {
+                // Check if there's a passed reservation ID from navigation
+                const passedId = location.state?.selectedReservationId;
+                if (passedId && validSessions.find(r => r._id === passedId)) {
+                    setSelectedReservationId(passedId);
+                    fetchSessionStudents(passedId);
+                } else {
+                    setSelectedReservationId(validSessions[0]._id);
+                    fetchSessionStudents(validSessions[0]._id);
+                }
             }
         } catch (err) {
             setError('Failed to fetch reservations');
             console.error('Error fetching reservations:', err);
         } finally {
             setLoading(false);
+        }
+    };
+
+    // Fetch students for the selected session
+    const fetchSessionStudents = async (reservationId) => {
+        try {
+            // First get the active session for this reservation
+            const sessionsRes = await api.get('/attendance/sessions', {
+                params: { reservationId }
+            });
+            
+            if (sessionsRes.data.sessions && sessionsRes.data.sessions.length > 0) {
+                const activeSession = sessionsRes.data.sessions.find(s => s.status === 'active') || sessionsRes.data.sessions[0];
+                
+                // Get students for this session
+                const studentsRes = await api.get(`/attendance/sessions/${activeSession._id}/students`);
+                
+                if (studentsRes.data.success) {
+                    // Convert students to attendance format
+                    const studentsWithAttendance = (studentsRes.data.students || []).map(student => ({
+                        _id: student.attendanceId || student._id,
+                        student: {
+                            _id: student._id,
+                            name: `${student.firstName} ${student.lastName}`,
+                            studentId: student.studentId,
+                            email: student.email
+                        },
+                        status: student.attendanceStatus || 'absent',
+                        checkInTime: student.markedAt,
+                        checkOutTime: null
+                    }));
+                    
+                    setAttendance(studentsWithAttendance);
+                    
+                    // Calculate stats
+                    const present = studentsWithAttendance.filter(s => s.status === 'present').length;
+                    const late = studentsWithAttendance.filter(s => s.status === 'late').length;
+                    const absent = studentsWithAttendance.filter(s => s.status === 'absent').length;
+                    const total = studentsWithAttendance.length;
+                    
+                    setStats({
+                        present,
+                        late,
+                        absent,
+                        total,
+                        expectedStudents: total,
+                        attendanceRate: total > 0 ? Math.round(((present + late) / total) * 100) : 0
+                    });
+                }
+            }
+        } catch (err) {
+            console.error('Error fetching session students:', err);
+            // Fall back to regular attendance fetching
+            fetchAttendanceAndStats(reservationId);
         }
     };
 
@@ -75,13 +156,37 @@ const MonitorAttendance = () => {
         setStats(null);
         setMarkResult(null);
         if (id) {
-            fetchAttendanceAndStats(id);
+            fetchSessionStudents(id);
+            // Also store the session ID for marking attendance
+            fetchSessionForReservation(id);
+        }
+    };
+    
+    // Store current session ID
+    const [currentSessionId, setCurrentSessionId] = useState(null);
+
+    // Fetch session ID for a reservation
+    const fetchSessionForReservation = async (reservationId) => {
+        try {
+            const sessionsRes = await api.get('/attendance/sessions', {
+                params: { reservationId }
+            });
+            
+            if (sessionsRes.data.sessions && sessionsRes.data.sessions.length > 0) {
+                const activeSession = sessionsRes.data.sessions.find(s => s.status === 'active') || sessionsRes.data.sessions[0];
+                setCurrentSessionId(activeSession._id);
+            } else {
+                setCurrentSessionId(null);
+            }
+        } catch (err) {
+            console.error('Error fetching session:', err);
+            setCurrentSessionId(null);
         }
     };
 
     const handleRefresh = () => {
         if (selectedReservationId) {
-            fetchAttendanceAndStats(selectedReservationId);
+            fetchSessionStudents(selectedReservationId);
         }
     };
 
@@ -107,7 +212,7 @@ const MonitorAttendance = () => {
                     student: response.data.student
                 });
                 setStudentIdInput('');
-                fetchAttendanceAndStats(selectedReservationId);
+                fetchSessionStudents(selectedReservationId);
             }
         } catch (err) {
             const msg = err.response?.data?.message || 'Failed to mark attendance';
@@ -127,10 +232,35 @@ const MonitorAttendance = () => {
             });
 
             if (response.data.success) {
-                fetchAttendanceAndStats(selectedReservationId);
+                fetchSessionStudents(selectedReservationId);
             }
         } catch (err) {
             const msg = err.response?.data?.message || 'Failed to check out student';
+            setError(msg);
+            setTimeout(() => setError(''), 4000);
+        }
+    };
+
+    const handleMarkPresent = async (studentIdString) => {
+        if (!selectedReservationId || !studentIdString) return;
+
+        try {
+            // Use session-based marking if available
+            if (currentSessionId) {
+                await api.post(`/attendance/sessions/${currentSessionId}/mark`, {
+                    studentId: studentIdString,
+                    status: 'present'
+                });
+            } else {
+                await api.post('/attendance/mark-by-student-id', {
+                    reservationId: selectedReservationId,
+                    studentId: studentIdString,
+                    status: 'present'
+                });
+            }
+            fetchSessionStudents(selectedReservationId);
+        } catch (err) {
+            const msg = err.response?.data?.message || 'Failed to mark as present';
             setError(msg);
             setTimeout(() => setError(''), 4000);
         }
@@ -140,12 +270,20 @@ const MonitorAttendance = () => {
         if (!selectedReservationId || !studentIdString) return;
 
         try {
-            await api.post('/attendance/mark-by-student-id', {
-                reservationId: selectedReservationId,
-                studentId: studentIdString,
-                status: 'absent'
-            });
-            fetchAttendanceAndStats(selectedReservationId);
+            // Use session-based marking if available
+            if (currentSessionId) {
+                await api.post(`/attendance/sessions/${currentSessionId}/mark`, {
+                    studentId: studentIdString,
+                    status: 'absent'
+                });
+            } else {
+                await api.post('/attendance/mark-by-student-id', {
+                    reservationId: selectedReservationId,
+                    studentId: studentIdString,
+                    status: 'absent'
+                });
+            }
+            fetchSessionStudents(selectedReservationId);
         } catch (err) {
             const msg = err.response?.data?.message || 'Failed to mark as absent';
             setError(msg);
@@ -176,7 +314,7 @@ const MonitorAttendance = () => {
         );
     };
 
-    const approvedReservations = reservations.filter(r => r.status === 'approved');
+    const approvedReservations = reservations.filter(r => r.status === 'approved' || r.status === 'pending');
     const selectedReservation = approvedReservations.find(r => r._id === selectedReservationId);
 
     const filteredAttendance = attendance.filter(record => {
@@ -237,8 +375,49 @@ const MonitorAttendance = () => {
                 const student = row?.student;
                 const hasCheckedOut = row?.checkOutTime;
                 const isPresent = row?.status === 'present' || row?.status === 'late';
+                const isAbsent = row?.status === 'absent' || !row?.status;
+                
                 return (
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        {/* Present Button */}
+                        {isAbsent && (
+                            <button
+                                onClick={() => handleMarkPresent(student?.studentId)}
+                                style={{
+                                    padding: '0.25rem 0.5rem',
+                                    fontSize: '0.75rem',
+                                    backgroundColor: '#22c55e',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '0.25rem',
+                                    cursor: 'pointer',
+                                    fontWeight: '500'
+                                }}
+                            >
+                                Present
+                            </button>
+                        )}
+                        
+                        {/* Mark as Absent Button */}
+                        {isPresent && (
+                            <button
+                                onClick={() => handleMarkAsAbsent(student?.studentId)}
+                                style={{
+                                    padding: '0.25rem 0.5rem',
+                                    fontSize: '0.75rem',
+                                    backgroundColor: '#ef4444',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '0.25rem',
+                                    cursor: 'pointer',
+                                    fontWeight: '500'
+                                }}
+                            >
+                                Absent
+                            </button>
+                        )}
+                        
+                        {/* Check Out Button */}
                         {isPresent && !hasCheckedOut && (
                             <button
                                 onClick={() => handleCheckOut(student?.studentId)}
@@ -291,7 +470,7 @@ const MonitorAttendance = () => {
                             <option value="">-- Select a session --</option>
                             {approvedReservations.map((r) => (
                                 <option key={r._id} value={r._id}>
-                                    {r.courseName} - {r.lab?.name} - {new Date(r.date).toLocaleDateString()} ({r.startTime}-{r.endTime})
+                                    {r.courseName} ({r.courseCode}) - {r.lab?.name} - {new Date(r.date).toLocaleDateString()} ({r.startTime}-{r.endTime}) {r.semester ? `| ${r.semester}` : ''} {r.year ? `Year ${r.year}` : ''} {r.section ? `Section ${r.section}` : ''}
                                 </option>
                             ))}
                         </select>

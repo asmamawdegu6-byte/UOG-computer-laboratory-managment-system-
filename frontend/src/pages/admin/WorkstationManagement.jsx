@@ -46,7 +46,7 @@ const WorkstationManagement = () => {
             setLoading(true);
             const [labsData, inventoryData] = await Promise.allSettled([
                 labService.getAllLabs(),
-                inventoryService.getAllItems({ limit: 100 })
+                inventoryService.getAllItems({ limit: 1000 })
             ]);
 
             if (labsData.status === 'fulfilled') {

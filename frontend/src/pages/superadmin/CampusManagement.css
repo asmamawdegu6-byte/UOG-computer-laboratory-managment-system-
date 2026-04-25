@@ -149,3 +149,101 @@
         flex-direction: column;
     }
 }
+
+/* Clickable Campus Cards */
+.campus-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.25rem;
+    margin-bottom: 2rem;
+}
+
+.campus-card-clickable {
+    border-radius: 12px;
+    padding: 1.25rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.campus-card-clickable:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+}
+
+.campus-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.campus-card-icon {
+    font-size: 2rem;
+}
+
+.campus-card-code {
+    color: white;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.campus-card-name {
+    margin: 0 0 0.25rem;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.campus-card-info {
+    margin: 0 0 1rem;
+    color: #64748b;
+    font-size: 0.85rem;
+}
+
+.campus-card-stats {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid rgba(0,0,0,0.08);
+}
+
+.campus-card-stats .stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.campus-card-stats .stat-value {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+.campus-card-stats .stat-label {
+    font-size: 0.7rem;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.campus-card-action {
+    text-align: center;
+    padding: 0.5rem;
+    background: rgba(255,255,255,0.6);
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #4f46e5;
+}
+
+.no-campuses {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 2rem;
+    color: #64748b;
+    background: #f8fafc;
+    border-radius: 12px;
+}

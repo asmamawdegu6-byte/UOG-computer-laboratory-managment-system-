@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { body, validationResult } = require('express-validator');
+const { body, validationResult, query } = require('express-validator');
 const { authenticate, authorize } = require('../middleware/auth');
 const bookingController = require('../controllers/bookingController');
 
@@ -12,8 +12,24 @@ const validate = (req, res, next) => {
     next();
 };
 
+// Public endpoint to check lab availability - no auth required
+router.get('/available', async (req, res, next) => {
+    try {
+        const { lab, date } = req.query;
+        
+        if (!lab || !date) {
+            return res.status(400).json({ success: false, message: 'Lab and date are required' });
+        }
+
+        const { getAvailability } = require('../controllers/labController');
+        await getAvailability(req, res);
+    } catch (error) {
+        next(error);
+    }
+});
+
 router.get('/conflicts', authenticate, authorize('admin', 'superadmin'), bookingController.detectConflicts);
-router.get('/', authenticate, authorize('admin', 'superadmin'), bookingController.getAllBookings);
+router.get('/', authenticate, authorize('admin', 'technician', 'superadmin'), bookingController.getAllBookings);
 router.get('/my-bookings', authenticate, bookingController.getMyBookings);
 router.get('/history', authenticate, bookingController.getBookingHistory);
 

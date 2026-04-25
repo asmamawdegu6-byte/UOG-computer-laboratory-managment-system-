@@ -1,0 +1,95 @@
+.public-layout {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+.main-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 5%;
+    background-color: #ffffff;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+}
+
+.nav-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-decoration: none;
+    color: #1e3a8a;
+}
+
+.nav-logo {
+    height: 50px;
+    width: auto;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.nav-brand-text {
+    display: flex;
+    flex-direction: column;
+}
+
+.nav-title {
+    font-size: 1.2rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.nav-subtitle {
+    font-size: 0.85rem;
+    color: #64748b;
+}
+
+.nav-links {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.nav-link {
+    text-decoration: none;
+    color: #475569;
+    font-weight: 500;
+    padding: 8px 4px;
+    transition: all 0.3s ease;
+    border-bottom: 2px solid transparent;
+}
+
+.nav-link:hover,
+.nav-link.active {
+    color: #1e3a8a;
+    border-bottom-color: #1e3a8a;
+}
+
+/* Login Link - Special Button Style */
+.nav-links .nav-link[href$="/login"],
+.nav-links .nav-link.active[href$="/login"] {
+    background-color: #1e3a8a;
+    color: #ffffff;
+    padding: 8px 20px;
+    border-radius: 6px;
+    border-bottom: none;
+    font-weight: 600;
+}
+
+.nav-links .nav-link[href$="/login"]:hover,
+.nav-links .nav-link.active[href$="/login"] {
+    background-color: #1e40af;
+    border-bottom: none;
+}
+
+.public-footer {
+    background-color: #1e3a8a;
+    color: #ffffff;
+    text-align: center;
+    padding: 2rem;
+    margin-top: auto;
+}

@@ -6,7 +6,7 @@ const User = require('../models/User');
 // @access  Private
 exports.getNotifications = async (req, res) => {
     try {
-        const { isRead, type, page = 1, limit = 20 } = req.query;
+        const { isRead, type, page = 1, limit = 1000 } = req.query;
         let query = { recipient: req.user._id };
 
         if (isRead !== undefined) query.isRead = isRead === 'true';

@@ -16,7 +16,7 @@ const BookingManagement = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterStatus, setFilterStatus] = useState('all');
     const [message, setMessage] = useState({ type: '', text: '' });
-    const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, pages: 0 });
+    const [pagination, setPagination] = useState({ page: 1, limit: 1000, total: 0, pages: 0 });
 
     const showMessage = useCallback((type, text) => {
         setMessage({ type, text });
@@ -48,15 +48,27 @@ const BookingManagement = () => {
     }, [fetchBookings]);
 
     const handleStatusChange = async (bookingId, newStatus) => {
+        console.log('========== FRONTEND BOOKING STATUS CHANGE ==========');
+        console.log('Booking ID:', bookingId);
+        console.log('New status:', newStatus);
+        
         try {
             const response = await api.patch(`/bookings/${bookingId}/status`, { status: newStatus });
+            console.log('Response:', response.data);
+            
             if (response.data.success) {
                 showMessage('success', `Booking ${newStatus} successfully`);
                 fetchBookings(pagination.page);
+            } else {
+                showMessage('error', response.data.message || `Failed to ${newStatus} booking`);
             }
         } catch (error) {
             console.error('Error updating booking status:', error);
-            showMessage('error', error?.response?.data?.message || 'Failed to update booking status');
+            console.error('Error response:', error.response);
+            console.error('Error status:', error.response?.status);
+            console.error('Error data:', error.response?.data);
+            
+            showMessage('error', error?.response?.data?.message || `Failed to ${newStatus} booking`);
         }
     };
 

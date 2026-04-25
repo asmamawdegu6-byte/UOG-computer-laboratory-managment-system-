@@ -73,10 +73,27 @@ bookingSchema.index({ status: 1 });
 
 // Check for overlapping bookings
 bookingSchema.statics.checkOverlap = async function (labId, workstationId, date, startTime, endTime, excludeBookingId = null) {
+    // Convert labId to ObjectId if needed
+    const labObjectId = mongoose.Types.ObjectId.isValid(labId) ? new mongoose.Types.ObjectId(labId) : labId;
+    
+    // Convert workstationId to ObjectId if needed
+    const wsObjectId = mongoose.Types.ObjectId.isValid(workstationId) ? new mongoose.Types.ObjectId(workstationId) : workstationId;
+    
+    // Handle both string date and Date object
+    let dateObj;
+    if (date instanceof Date) {
+        dateObj = date;
+    } else {
+        dateObj = new Date(date);
+    }
+    
+    // Reset time component to ensure we're comparing dates correctly
+    dateObj.setHours(0, 0, 0, 0);
+    
     const query = {
-        lab: labId,
-        'workstation.workstationId': workstationId,
-        date: new Date(date),
+        lab: labObjectId,
+        'workstation.workstationId': wsObjectId,
+        date: dateObj,
         status: { $in: ['pending', 'confirmed'] },
         $or: [
             { startTime: { $lt: endTime }, endTime: { $gt: startTime } }
@@ -87,6 +104,7 @@ bookingSchema.statics.checkOverlap = async function (labId, workstationId, date,
         query._id = { $ne: excludeBookingId };
     }
 
+    console.log('[CHECK OVERLAP] Query:', JSON.stringify(query));
     return this.findOne(query);
 };
 

@@ -586,6 +586,141 @@ exports.markAttendanceByEmail = async (req, res) => {
     }
 };
 
+// @route   GET /api/attendance/history
+// @desc    Get attendance history for teacher
+// @access  Teacher/Admin
+exports.getAttendanceHistory = async (req, res) => {
+    try {
+        console.log('getAttendanceHistory called', { userId: req.user._id, role: req.user.role, query: req.query });
+        
+        const { reservationId, date, page = 1, limit = 50 } = req.query;
+        
+        // Get all reservations for this teacher to find their sessions
+        let teacherReservations;
+        if (req.user.role === 'teacher') {
+            teacherReservations = await Reservation.find({ teacher: req.user._id }).select('_id');
+        } else if (req.user.role === 'admin' || req.user.role === 'superadmin') {
+            // Admin can see all reservations
+            teacherReservations = await Reservation.find().select('_id');
+        } else {
+            return res.status(403).json({ success: false, message: 'Access denied' });
+        }
+        
+        console.log('Teacher reservations:', teacherReservations.length);
+        
+        const reservationIds = teacherReservations.map(r => r._id);
+        
+        // If no reservations, return empty array
+        if (reservationIds.length === 0) {
+            return res.json({
+                success: true,
+                attendance: [],
+                pagination: {
+                    page: 1,
+                    limit: parseInt(limit),
+                    total: 0,
+                    pages: 0
+                }
+            });
+        }
+        
+        // Build query - include both reservation-based AND session-based attendance
+        let query = {};
+        
+        // Get all attendance session IDs for teacher's reservations
+        const AttendanceSession = require('../models/AttendanceSession');
+        const teacherSessions = await AttendanceSession.find({
+            teacher: req.user._id
+        }).select('_id');
+        const sessionIds = teacherSessions.map(s => s._id);
+        
+        const hasReservationFilter = reservationId && reservationIds.some(id => String(id) === String(reservationId));
+
+        if (hasReservationFilter) {
+            // Filter by specific reservation
+            query = { reservation: reservationId };
+        } else if (sessionIds.length > 0) {
+            // Get all attendance for teacher's reservations OR sessions
+            query = {
+                $or: [
+                    { reservation: { $in: reservationIds } },
+                    { session: { $in: sessionIds } }
+                ]
+            };
+        } else {
+            // Get all attendance for teacher's reservations
+            query = { reservation: { $in: reservationIds } };
+        }
+
+        if (date) {
+            const selectedDate = new Date(date);
+            if (!Number.isNaN(selectedDate.getTime())) {
+                const nextDate = new Date(selectedDate);
+                nextDate.setDate(nextDate.getDate() + 1);
+                query = {
+                    $and: [
+                        query,
+                        {
+                            $or: [
+                                { createdAt: { $gte: selectedDate, $lt: nextDate } },
+                                { checkInTime: { $gte: selectedDate, $lt: nextDate } }
+                            ]
+                        }
+                    ]
+                };
+            }
+        }
+        
+        const skip = (parseInt(page) - 1) * parseInt(limit);
+        
+        const attendance = await Attendance.find(query)
+            .populate('student', 'name email studentId firstName lastName')
+            .populate('markedBy', 'name')
+            .populate('session', 'courseCode year semester department campus startedAt createdAt')
+            .populate({
+                path: 'reservation',
+                select: 'courseName courseCode date startTime endTime lab',
+                populate: { path: 'lab', select: 'name' }
+            })
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(parseInt(limit));
+        
+        const total = await Attendance.countDocuments(query);
+        
+        // Transform data for frontend - handle both session and reservation based records
+        const records = attendance.map(a => ({
+            _id: a._id,
+            student: a.student,
+            courseName: a.reservation?.courseName || a.session?.courseCode || 'Manual Attendance Session',
+            courseCode: a.reservation?.courseCode || a.session?.courseCode || 'N/A',
+            date: a.reservation?.date || a.checkInTime || a.session?.startedAt || a.session?.createdAt,
+            startTime: a.reservation?.startTime || '',
+            endTime: a.reservation?.endTime || '',
+            lab: a.reservation?.lab,
+            status: a.status,
+            checkInTime: a.checkInTime,
+            checkOutTime: a.checkOutTime,
+            markedBy: a.markedBy,
+            notes: a.notes
+        }));
+        
+        res.json({
+            success: true,
+            attendance: records,
+            pagination: {
+                page: parseInt(page),
+                limit: parseInt(limit),
+                total,
+                pages: Math.ceil(total / parseInt(limit))
+            }
+        });
+    } catch (error) {
+        console.error('Get attendance history error:', error);
+        res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+    }
+};
+
 // @route   GET /api/attendance/active-session
 // @desc    Get current active session for attendance (auto-detect based on time)
 // @access  Private (any authenticated user)

@@ -63,7 +63,7 @@ const userSchema = new mongoose.Schema({
     semester: {
         type: Number,
         min: 1,
-        max: 2
+        max: 8
     },
     department: {
         type: String,
@@ -85,6 +85,11 @@ const userSchema = new mongoose.Schema({
         type: String,
         trim: true
     },
+    gender: {
+        type: String,
+        enum: ['male', 'female', 'other'],
+        sparse: true
+    },
     isActive: {
         type: Boolean,
         default: false
@@ -101,6 +106,19 @@ const userSchema = new mongoose.Schema({
         type: String
     },
     passwordResetExpires: {
+        type: Date
+    },
+    verificationCode: {
+        type: String
+    },
+    verificationCodeExpires: {
+        type: Date
+    },
+    phoneResetVerified: {
+        type: Boolean,
+        default: false
+    },
+    phoneResetVerifiedExpires: {
         type: Date
     }
 }, {

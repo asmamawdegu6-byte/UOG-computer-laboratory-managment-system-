@@ -1,101 +1,156 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../components/layout/DashboardLayout';
+import api from '../../services/api';
 import './ViewAvailability.css';
 
 const ViewAvailability = () => {
   const navigate = useNavigate();
-  const [selectedLab, setSelectedLab] = useState('');
-  const [selectedRoom, setSelectedRoom] = useState('');
+  const [selectedLab, setSelectedLab] = useState(null);
+  const [selectedRoom, setSelectedRoom] = useState(null);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [loading, setLoading] = useState(false);
   const [showResults, setShowResults] = useState(false);
+  const [labs, setLabs] = useState([]);
+  const [loadingLabs, setLoadingLabs] = useState(true);
+  const [userGender, setUserGender] = useState(null);
+  const [availabilityData, setAvailabilityData] = useState(null);
+  const [loadingAvailability, setLoadingAvailability] = useState(false);
 
-  // Labs data with rooms
-  const labs = [
-    {
-      id: 'it-lab',
-      name: 'IT Lab',
-      location: 'Main Building, Floor 1',
-      totalPCs: 140,
-      rooms: [
-        { id: 'lab-a', name: 'Lab A', totalPCs: 40, genderRestriction: null },
-        { id: 'lab-b', name: 'Lab B', totalPCs: 35, genderRestriction: null },
-        { id: 'lab-c', name: 'Lab C', totalPCs: 30, genderRestriction: null },
-        { id: 'post-lab', name: 'Post Lab', totalPCs: 35, genderRestriction: null }
-      ]
-    },
-    {
-      id: 'cs-lab',
-      name: 'CS Lab',
-      location: 'Main Building, Floor 2',
-      totalPCs: 110,
-      rooms: [
-        { id: 'lab-d', name: 'Lab D', totalPCs: 40, genderRestriction: null },
-        { id: 'lab-e', name: 'Lab E', totalPCs: 35, genderRestriction: null },
-        { id: 'cs-post-lab', name: 'Post Lab', totalPCs: 35, genderRestriction: null }
-      ]
-    },
-    {
-      id: 'main-library-lab',
-      name: 'Main Library Lab',
-      location: 'Library Building, Floor 1',
-      totalPCs: 160,
-      rooms: [
-        { id: 'room-1', name: 'Room 1', totalPCs: 40, genderRestriction: null },
-        { id: 'room-2', name: 'Room 2', totalPCs: 40, genderRestriction: null },
-        { id: 'room-3', name: 'Room 3', totalPCs: 40, genderRestriction: 'Female Only' },
-        { id: 'room-4', name: 'Room 4', totalPCs: 40, genderRestriction: null }
-      ]
-    },
-    {
-      id: 'veterinary-lab',
-      name: 'Veterinary Lab',
-      location: 'Veterinary Building, Floor 1',
-      totalPCs: 80,
-      rooms: [
-        { id: 'vet-room-1', name: 'Room 1', totalPCs: 40, genderRestriction: 'Male Only' },
-        { id: 'vet-room-2', name: 'Room 2', totalPCs: 40, genderRestriction: 'Female Only' }
-      ]
+  // Filter availability by selected room's workstations
+  const getRoomAvailability = () => {
+    if (!availabilityData || !selectedRoom) return null;
+    
+    // Get the room's index to map to lab workstations
+    const labRooms = selectedLab.rooms || [];
+    const roomIndex = labRooms.findIndex(r => r._id === selectedRoom._id);
+    
+    // Map lab workstations to this room based on capacity
+    const roomCapacity = selectedRoom.capacity || 0;
+    const startIdx = roomIndex >= 0 ? roomIndex * Math.ceil((selectedLab.workstations?.length || 0) / labRooms.length) : 0;
+    const roomWorkstations = (availabilityData.availability || []).slice(startIdx, startIdx + roomCapacity);
+    
+    // If no workstations found from slice, take first N workstations
+    const filtered = roomWorkstations.length > 0 ? roomWorkstations : (availabilityData.availability || []).slice(0, roomCapacity);
+    
+    // Calculate stats
+    const available = filtered.filter(ws => ws.status === 'available').length;
+    const occupied = filtered.filter(ws => ws.status === 'occupied').length;
+    const maintenance = filtered.filter(ws => ws.status === 'maintenance').length;
+    const reserved = filtered.filter(ws => ws.status === 'reserved').length;
+    
+    return {
+      workstations: filtered,
+      stats: { available, occupied, maintenance, reserved, total: filtered.length }
+    };
+  };
+
+  // Get student's campus from user profile
+  const getStudentCampus = () => {
+    try {
+      const userStr = localStorage.getItem('user');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        if (user.campus) return user.campus;
+      }
+    } catch (e) {
+      console.error('Error getting student campus:', e);
     }
-  ];
+    return null;
+  };
 
-  // Time slots
-  const timeSlots = [
-    { time: '08:00 - 09:00', available: 12 },
-    { time: '09:00 - 10:00', available: 8 },
-    { time: '10:00 - 11:00', available: 15 },
-    { time: '11:00 - 12:00', available: 20 },
-    { time: '12:00 - 13:00', available: 35 },
-    { time: '13:00 - 14:00', available: 28 },
-    { time: '14:00 - 15:00', available: 18 },
-    { time: '15:00 - 16:00', available: 10 },
-    { time: '16:00 - 17:00', available: 22 },
-    { time: '17:00 - 18:00', available: 30 },
-  ];
+  useEffect(() => {
+    fetchLabs();
+    // Get user gender from localStorage
+    try {
+      const userStr = localStorage.getItem('user');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        setUserGender(user.gender || null);
+      }
+    } catch (e) {
+      console.error('Error getting user gender:', e);
+    }
+  }, []);
 
-  const handleLabSelect = (labId) => {
-    setSelectedLab(labId);
-    setSelectedRoom('');
+  const fetchLabs = async () => {
+    try {
+      setLoadingLabs(true);
+      const campus = getStudentCampus();
+      if (!campus) {
+        console.warn('No campus found for student');
+        setLoadingLabs(false);
+        return;
+      }
+      // Fetch ALL labs (including inactive) for availability view
+      const response = await api.get(`/labs?campus=${encodeURIComponent(campus)}&all=true`);
+      setLabs(response.data.labs || []);
+    } catch (error) {
+      console.error('Error fetching labs:', error);
+    } finally {
+      setLoadingLabs(false);
+    }
+  };
+
+  const handleLabSelect = (lab) => {
+    setSelectedLab(lab);
+    setSelectedRoom(null);
     setShowResults(false);
   };
 
-  const handleRoomSelect = (roomId) => {
-    setSelectedRoom(roomId);
+  // Check if a room is allowed for the current user based on gender
+  const isRoomAllowed = (room) => {
+    if (room.isActive === false) return false;
+    if (room.type === 'female_only') return userGender === 'female';
+    if (room.type === 'male_only') return userGender === 'male';
+    // All other room types (general, post, etc.) are allowed
+    return true;
+  };
+
+  const handleRoomSelect = (room) => {
+    if (!isRoomAllowed(room)) {
+      alert('You do not have permission to book this room.');
+      return;
+    }
+    setSelectedRoom(room);
     setShowResults(false);
   };
 
-  const handleCheckAvailability = () => {
+  const handleCheckAvailability = async () => {
     if (!selectedLab || !selectedRoom) return;
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      setShowResults(true);
-    }, 800);
+    setShowResults(true);
+    setLoadingAvailability(true);
+    try {
+      const response = await api.get(`/labs/${selectedLab._id}/availability`, {
+        params: { date: selectedDate }
+      });
+      setAvailabilityData(response.data);
+    } catch (error) {
+      console.error('Error fetching availability:', error);
+      setAvailabilityData(null);
+    } finally {
+      setLoadingAvailability(false);
+    }
   };
 
-  const selectedLabData = labs.find(lab => lab.id === selectedLab);
-  const selectedRoomData = selectedLabData?.rooms.find(room => room.id === selectedRoom);
+  const handleBookNow = () => {
+    if (!selectedLab || !selectedRoom || !selectedDate) return;
+    if (!isRoomAllowed(selectedRoom)) {
+      alert('You do not have permission to book this room.');
+      return;
+    }
+    navigate(
+      `/student/book?labId=${selectedLab._id}&roomId=${selectedRoom._id}&roomName=${encodeURIComponent(selectedRoom.name)}&labName=${encodeURIComponent(selectedLab.name)}&date=${selectedDate}`
+    );
+  };
+
+   // Filter labs for student booking (IT, CS, Main Library, Veterinary)
+   const studentLabs = labs.filter(lab => {
+     const name = lab.name.toLowerCase();
+     return name.includes('it lab') ||
+            name.includes('cs lab') ||
+            name.includes('main library') ||
+            name.includes('veterinary');
+   });
 
   return (
     <DashboardLayout>
@@ -105,58 +160,71 @@ const ViewAvailability = () => {
           <p>Check real-time availability of computer labs and workstations</p>
         </div>
 
-        {/* Lab Selection Cards */}
+        {/* Labs Grid */}
         <div className="labs-grid">
-          {labs.map((lab) => (
-            <div
-              key={lab.id}
-              className={`lab-card ${selectedLab === lab.id ? 'selected' : ''}`}
-              onClick={() => handleLabSelect(lab.id)}
-            >
-              <div className="lab-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-                  <line x1="8" y1="21" x2="16" y2="21" />
-                  <line x1="12" y1="17" x2="12" y2="21" />
-                </svg>
-              </div>
-              <h3>{lab.name}</h3>
-              <p className="lab-location">{lab.location}</p>
-              <span className="lab-capacity">{lab.rooms.length} Rooms</span>
+          {loadingLabs ? (
+            <p>Loading labs...</p>
+          ) : studentLabs.length === 0 ? (
+            <div className="empty-state">
+              <p>No labs available for your campus. Please contact the administrator.</p>
             </div>
-          ))}
+          ) : (
+            studentLabs.map((lab) => (
+              <div
+                key={lab._id}
+                className={`lab-card ${selectedLab?._id === lab._id ? 'selected' : ''}`}
+                onClick={() => handleLabSelect(lab)}
+              >
+                <div className="lab-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                    <line x1="8" y1="21" x2="16" y2="21" />
+                    <line x1="12" y1="17" x2="12" y2="21" />
+                  </svg>
+                </div>
+                <h3>{lab.name}</h3>
+                <p className="lab-location">
+                  {lab.location?.building || 'Main Building'}, {lab.location?.floor || 'Floor 1'}
+                </p>
+                <span className="lab-capacity">{lab.rooms?.length || 0} Rooms</span>
+                {lab.isTemporarilyInactive && <span className="gender-badge male">In Use Now</span>}
+              </div>
+            ))
+          )}
         </div>
 
         {/* Rooms Section - Show when lab is selected */}
-        {selectedLabData && (
+        {selectedLab && (
           <div className="rooms-section">
             <div className="rooms-header">
-              <h2>{selectedLabData.name} - Available Rooms</h2>
+              <h2>{selectedLab.name} - Available Rooms</h2>
               <p>Select a room to check availability</p>
             </div>
             <div className="rooms-grid">
-              {selectedLabData.rooms.map((room) => (
-                <div
-                  key={room.id}
-                  className={`room-card ${selectedRoom === room.id ? 'selected' : ''} ${room.genderRestriction ? 'restricted' : ''}`}
-                  onClick={() => handleRoomSelect(room.id)}
-                >
-                  <div className="room-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                      <line x1="3" y1="9" x2="21" y2="9" />
-                      <line x1="9" y1="21" x2="9" y2="9" />
-                    </svg>
+              {selectedLab.rooms?.map((room) => {
+                const allowed = isRoomAllowed(room);
+                return (
+                  <div
+                    key={room._id}
+                    className={`room-card ${selectedRoom?._id === room._id ? 'selected' : ''} ${room.type === 'female_only' ? 'restricted-female' : room.type === 'male_only' ? 'restricted-male' : ''} ${!allowed ? 'disabled' : ''}`}
+                    onClick={() => allowed && handleRoomSelect(room)}
+                    style={{ cursor: allowed ? 'pointer' : 'not-allowed', opacity: allowed || selectedRoom?._id === room._id ? 1 : 0.6 }}
+                  >
+                    <div className="room-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                        <line x1="3" y1="9" x2="21" y2="9" />
+                        <line x1="9" y1="21" x2="9" y2="9" />
+                      </svg>
+                    </div>
+                    <h4>{room.name}</h4>
+                    <p className="room-capacity">{room.capacity} Workstations</p>
+                    {room.isActive === false && <span className="gender-badge male">In Use Now</span>}
+                    {room.type === 'female_only' && <span className="gender-badge female">Female Only</span>}
+                    {room.type === 'male_only' && <span className="gender-badge male">Male Only</span>}
                   </div>
-                  <h4>{room.name}</h4>
-                  <p className="room-capacity">{room.totalPCs} Workstations</p>
-                  {room.genderRestriction && (
-                    <span className={`gender-badge ${room.genderRestriction === 'Female Only' ? 'female' : 'male'}`}>
-                      {room.genderRestriction}
-                    </span>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -176,90 +244,133 @@ const ViewAvailability = () => {
                 type="date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
+                min={new Date().toISOString().split('T')[0]}
               />
             </div>
             <button
               className="check-btn"
               onClick={handleCheckAvailability}
-              disabled={!selectedLab || !selectedRoom || loading}
+              disabled={!selectedLab || !selectedRoom}
             >
-              {loading ? (
-                <span className="spinner"></span>
-              ) : (
-                <>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-                  </svg>
-                  Check Availability
-                </>
-              )}
+              Check Availability
             </button>
           </div>
         </div>
 
         {/* Results Section */}
-        {showResults && selectedLabData && selectedRoomData && (
+        {showResults && selectedLab && selectedRoom && (
           <div className="results-section">
             <div className="results-header">
               <div>
-                <h2>Availability for {selectedLabData.name} - {selectedRoomData.name}</h2>
-                {selectedRoomData.genderRestriction && (
-                  <span className={`gender-badge ${selectedRoomData.genderRestriction === 'Female Only' ? 'female' : 'male'}`}>
-                    {selectedRoomData.genderRestriction}
-                  </span>
-                )}
+                <h2>Availability for {selectedLab.name} - {selectedRoom.name}</h2>
+                {selectedRoom.type === 'female_only' && <span className="gender-badge female">Female Only</span>}
+                {selectedRoom.type === 'male_only' && <span className="gender-badge male">Male Only</span>}
               </div>
               <span className="date-display">{selectedDate}</span>
             </div>
 
-            <div className="time-slots-grid">
-              {timeSlots.map((slot, index) => (
-                <div key={index} className={`time-slot ${slot.available < 10 ? 'limited' : ''}`}>
-                  <div className="time-label">{slot.time}</div>
-                  <div className="availability-bar">
-                    <div
-                      className="availability-fill"
-                      style={{
-                        width: `${(slot.available / selectedRoomData.totalPCs) * 100}%`,
-                        backgroundColor: slot.available < 10 ? '#e74c3c' : slot.available < 20 ? '#f39c12' : '#2ecc71'
-                      }}
-                    />
-                  </div>
-                  <div className="availability-count">
-                    {slot.available} / {selectedRoomData.totalPCs} available
+            {loadingAvailability ? (
+              <div className="availability-loading">
+                <p>Loading availability data...</p>
+              </div>
+            ) : availabilityData ? (
+              <>
+                {/* Availability Stats */}
+                {(() => {
+                  const roomAvail = getRoomAvailability();
+                  return roomAvail ? (
+                    <div className="availability-stats">
+                      <div className="stat-item available">
+                        <span className="stat-value">{roomAvail.stats.available}</span>
+                        <span className="stat-label">Available</span>
+                      </div>
+                      <div className="stat-item occupied">
+                        <span className="stat-value">{roomAvail.stats.occupied}</span>
+                        <span className="stat-label">Occupied</span>
+                      </div>
+                      <div className="stat-item reserved">
+                        <span className="stat-value">{roomAvail.stats.reserved}</span>
+                        <span className="stat-label">Reserved</span>
+                      </div>
+                      <div className="stat-item maintenance">
+                        <span className="stat-value">{roomAvail.stats.maintenance}</span>
+                        <span className="stat-label">Maintenance</span>
+                      </div>
+                    </div>
+                  ) : null;
+                })()}
+
+                {/* Time Slots */}
+                <div className="time-slots-grid">
+                  <h3>Time Slots</h3>
+                  <div className="time-slots">
+                    {['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00'].map(time => {
+                      const hour = parseInt(time.split(':')[0]);
+                      
+                      // Get room workstations using same logic as getRoomAvailability
+                      const labRooms = selectedLab.rooms || [];
+                      const roomIndex = labRooms.findIndex(r => r._id === selectedRoom._id);
+                      const roomCapacity = selectedRoom.capacity || 0;
+                      const startIdx = roomIndex >= 0 ? roomIndex * Math.ceil((selectedLab.workstations?.length || 0) / labRooms.length) : 0;
+                      let roomWorkstations = (availabilityData.availability || []).slice(startIdx, startIdx + roomCapacity);
+                      if (roomWorkstations.length === 0) {
+                        roomWorkstations = (availabilityData.availability || []).slice(0, roomCapacity);
+                      }
+                      const roomWsIds = roomWorkstations.map(ws => ws._id.toString());
+                      
+                      const availableCount = roomWorkstations.filter(ws => {
+                        if (!ws.bookings || ws.bookings.length === 0) return true;
+                        const hasConflict = ws.bookings.some(b => {
+                          const bStart = new Date(b.startTime).getHours();
+                          const bEnd = new Date(b.endTime).getHours();
+                          return hour >= bStart && hour < bEnd;
+                        });
+                        return !hasConflict;
+                      }).length;
+                      const totalCount = roomWorkstations.length;
+                      const isAvailable = availableCount > 0;
+                      
+                      return (
+                        <div key={time} className={`time-slot ${isAvailable ? 'available' : 'unavailable'}`}>
+                          <span className="slot-time">{time}</span>
+                          <span className="slot-count">{availableCount}/{totalCount} available</span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
-              ))}
-            </div>
 
-            <div className="legend">
-              <div className="legend-item">
-                <span className="legend-color" style={{ background: '#2ecc71' }}></span>
-                <span>{'Good Availability (>20)'}</span>
+                {/* Reservations info */}
+                {availabilityData.reservations && availabilityData.reservations.length > 0 && (
+                  <div className="reservations-info">
+                    <h3>Scheduled Classes</h3>
+                    {availabilityData.reservations.map((res, idx) => (
+                      <div key={idx} className="reservation-item">
+                        <span className="res-time">{res.startTime} - {res.endTime}</span>
+                        <span className="res-course">{res.courseName} ({res.courseCode})</span>
+                        <span className="res-teacher">{res.teacherName}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="availability-error">
+                <p>Unable to load availability data. Please try again.</p>
               </div>
-              <div className="legend-item">
-                <span className="legend-color" style={{ background: '#f39c12' }}></span>
-                <span>Limited (10-20)</span>
-              </div>
-              <div className="legend-item">
-                <span className="legend-color" style={{ background: '#e74c3c' }}></span>
-                <span>{'Nearly Full (<10)'}</span>
-              </div>
-            </div>
+            )}
 
             <div className="quick-book">
-              <p>Found a suitable time? Book your workstation now!</p>
-              <button
-                className="book-now-btn"
-                onClick={() => {
-                  const selectedLabData = labs.find(lab => lab.id === selectedLab);
-                  const selectedRoomData = selectedLabData?.rooms.find(room => room.id === selectedRoom);
-                  navigate(`/student/book?labName=${encodeURIComponent(selectedLabData?.name || '')}&roomName=${encodeURIComponent(selectedRoomData?.name || '')}&date=${selectedDate}`);
-                }}
-              >
-                Book Workstation →
-              </button>
-            </div>
+               <p>Ready to book? Select your time and proceed to workstation selection.</p>
+               <button
+                 className="book-now-btn"
+                 onClick={handleBookNow}
+                 disabled={!selectedLab || !selectedRoom || !isRoomAllowed(selectedRoom)}
+                 style={(!selectedLab || !selectedRoom || !isRoomAllowed(selectedRoom)) ? { opacity: 0.6, cursor: 'not-allowed' } : {}}
+               >
+                 Book Workstation →
+               </button>
+             </div>
           </div>
         )}
       </div>

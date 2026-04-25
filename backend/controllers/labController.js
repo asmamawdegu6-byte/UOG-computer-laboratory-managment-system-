@@ -1,18 +1,54 @@
 const Lab = require('../models/Lab');
 const Booking = require('../models/Booking');
+const Reservation = require('../models/Reservation');
+const jwt = require('jsonwebtoken');
+const User = require('../models/User');
+const logger = require('../utils/logger');
+const AuditLog = require('../models/AuditLog');
+const { buildAvailabilityMaps, applyDynamicAvailabilityToLab } = require('../utils/resourceAvailability');
+
+// Optional auth - tries to verify token but doesn't fail if not present
+const optionalAuth = async (req) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+            const token = authHeader.substring(7);
+            const decoded = jwt.verify(token, process.env.JWT_SECRET);
+            const user = await User.findById(decoded.id);
+            if (user && user.isActive) {
+                return user;
+            }
+        }
+    } catch (e) {
+        logger.warn('Optional auth failed', { error: e.message });
+    }
+    return null;
+};
 
 // @route   GET /api/labs
 // @desc    Get all labs
 // @access  Public
 exports.getAllLabs = async (req, res) => {
     try {
-        const { status, search, campus, page = 1, limit = 20, all } = req.query;
+        const { status, search, campus, page = 1, limit = 1000, all } = req.query;
+
+        // Optional authentication to identify admin users
+        const currentUser = await optionalAuth(req);
 
         const currentPage = parseInt(page) || 1;
-        const currentLimit = parseInt(limit) || 20;
+        const currentLimit = parseInt(limit) || 1000;
         const skip = (currentPage - 1) * currentLimit;
 
         let query = {};
+
+        // Campus admins and technicians can only see their own campus labs
+        if (currentUser && currentUser.role === 'admin' && currentUser.campus) {
+            query.campus = currentUser.campus;
+        } else if (currentUser && currentUser.role === 'technician' && currentUser.campus) {
+            query.campus = currentUser.campus;
+        } else if (campus) {
+            query.campus = campus;
+        }
 
         // Default to active only, unless 'all' is requested (intended for admin management)
         if (all !== 'true') {
@@ -20,7 +56,6 @@ exports.getAllLabs = async (req, res) => {
         }
 
         if (status) query.status = status;
-        if (campus) query.campus = campus;
         if (search) {
             query.$or = [
                 { name: { $regex: search, $options: 'i' } },
@@ -40,11 +75,14 @@ exports.getAllLabs = async (req, res) => {
             .limit(currentLimit)
             .sort({ name: 1 });
 
+        const availabilityMaps = await buildAvailabilityMaps(labs.map(lab => lab._id));
+        const decoratedLabs = labs.map(lab => applyDynamicAvailabilityToLab(lab, availabilityMaps));
+
         const total = await Lab.countDocuments(query);
 
         res.json({
             success: true,
-            labs,
+            labs: decoratedLabs,
             pagination: {
                 page: currentPage,
                 limit: currentLimit,
@@ -67,9 +105,85 @@ exports.getLabById = async (req, res) => {
         if (!lab) {
             return res.status(404).json({ success: false, message: 'Lab not found' });
         }
-        res.json({ success: true, lab });
+        const availabilityMaps = await buildAvailabilityMaps([lab._id]);
+        res.json({ success: true, lab: applyDynamicAvailabilityToLab(lab, availabilityMaps) });
     } catch (error) {
         console.error('Get lab error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @route   GET /api/labs/campus/:campus
+// @desc    Get all labs for a specific campus
+// @access  Public
+exports.getLabsByCampus = async (req, res) => {
+    try {
+        const { campus } = req.params;
+        const labs = await Lab.find({ campus, isActive: true })
+            .populate('supervisor', 'name email')
+            .sort({ name: 1 });
+        const availabilityMaps = await buildAvailabilityMaps(labs.map(lab => lab._id));
+        res.json({ success: true, labs: labs.map(lab => applyDynamicAvailabilityToLab(lab, availabilityMaps)) });
+    } catch (error) {
+        console.error('Get labs by campus error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @route   GET /api/labs/:id/rooms
+// @desc    Get rooms for a lab with workstation details
+// @access  Public
+exports.getLabRooms = async (req, res) => {
+    try {
+        const lab = await Lab.findById(req.params.id);
+        if (!lab) {
+            return res.status(404).json({ success: false, message: 'Lab not found' });
+        }
+
+        const availabilityMaps = await buildAvailabilityMaps([lab._id]);
+        const decoratedLab = applyDynamicAvailabilityToLab(lab, availabilityMaps);
+
+        // Get all workstations from the lab level as fallback
+        const labWorkstations = decoratedLab.workstations || [];
+
+        const roomStats = (decoratedLab.rooms || []).map(room => {
+            // Use room workstations if available, otherwise use lab workstations
+            let ws = room.workstations || [];
+
+            // If room has no workstations but has capacity, generate from lab workstations
+            if (ws.length === 0 && room.capacity > 0 && labWorkstations.length > 0) {
+                // Get workstations based on room capacity (split from lab workstations)
+                const startIdx = 0; // Could be adjusted based on room order
+                ws = labWorkstations.slice(startIdx, startIdx + room.capacity);
+            }
+
+            const available = ws.filter(w => w.status === 'available').length;
+            const occupied = ws.filter(w => w.status === 'occupied').length;
+            const maintenance = ws.filter(w => w.status === 'maintenance').length;
+            const reserved = ws.filter(w => w.status === 'reserved').length;
+
+            return {
+                _id: room._id,
+                name: room.name,
+                type: room.type,
+                capacity: room.capacity,
+                workstations: ws,
+                stats: { available, occupied, maintenance, reserved, total: ws.length }
+            };
+        });
+
+        res.json({
+            success: true,
+            rooms: roomStats,
+            lab: {
+                name: decoratedLab.name,
+                campus: decoratedLab.campus,
+                isTemporarilyInactive: decoratedLab.isTemporarilyInactive,
+                activeReservation: decoratedLab.activeReservation
+            }
+        });
+    } catch (error) {
+        console.error('Get lab rooms error:', error);
         res.status(500).json({ success: false, message: 'Server error' });
     }
 };
@@ -83,9 +197,118 @@ exports.getWorkstations = async (req, res) => {
         if (!lab) {
             return res.status(404).json({ success: false, message: 'Lab not found' });
         }
-        res.json({ success: true, workstations: lab.workstations });
+        const availabilityMaps = await buildAvailabilityMaps([lab._id]);
+        const decoratedLab = applyDynamicAvailabilityToLab(lab, availabilityMaps);
+        res.json({ success: true, workstations: decoratedLab.workstations });
     } catch (error) {
         console.error('Get workstations error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @route   PUT /api/labs/:id/workstations/:workstationId
+// @desc    Update workstation status (technician manually checks and updates)
+// @access  Technician/Admin
+exports.updateWorkstationStatus = async (req, res) => {
+    try {
+        const { status, notes } = req.body;
+        
+        const validStatuses = ['available', 'occupied', 'reserved', 'maintenance', 'broken'];
+        if (!status || !validStatuses.includes(status)) {
+            return res.status(400).json({ success: false, message: 'Invalid status' });
+        }
+
+        const lab = await Lab.findById(req.params.id);
+        if (!lab) {
+            return res.status(404).json({ success: false, message: 'Lab not found' });
+        }
+
+        // Authorization check: Lab owner (supervisor), admin, or technician of the same campus
+        const isSupervisor = lab.supervisor?.toString() === req.user._id.toString();
+        const isAdmin = ['admin', 'superadmin'].includes(req.user.role);
+
+        // Check campus match robustly
+        const isTechnicianOnCampus = req.user.role === 'technician' && (lab.campus === req.user.campus || lab.campus === req.user.campusCode);
+
+        if (!isAdmin && !isSupervisor && !isTechnicianOnCampus) {
+            return res.status(403).json({ 
+                success: false, 
+                message: `Access denied: You are not authorized to manage computers in ${lab.campus}` 
+            });
+        }
+
+        const targetWsId = req.params.workstationId.toString();
+        let workstation = lab.workstations?.find(w => w._id && w._id.toString() === targetWsId);
+        let roomName = null;
+        let previousStatus = null;
+        let wsNumber = null;
+        
+        if (!workstation) {
+            for (const room of lab.rooms || []) {
+                workstation = room.workstations?.find(w => w._id && w._id.toString() === targetWsId);
+                if (workstation) {
+                    previousStatus = workstation.status;
+                    wsNumber = workstation.workstationNumber;
+                    roomName = room.name;
+                    workstation.status = status;
+                    if (notes) workstation.notes = notes;
+                    
+                    lab.markModified('rooms');
+                    await lab.save();
+
+                    // Audit log for workstation status update in room
+                    await AuditLog.create({
+                        user: req.user._id,
+                        action: 'workstation.status_change',
+                        resource: 'Workstation',
+                        resourceId: req.params.workstationId,
+                        details: `Updated workstation ${wsNumber} in room ${room.name} (${lab.name}) from ${previousStatus} to ${status}`,
+                        previousValue: { status: previousStatus },
+                        newValue: { status },
+                        ipAddress: req.ip
+                    });
+
+                    return res.json({ 
+                        success: true, 
+                        message: 'Workstation status updated',
+                        workstation
+                    });
+                }
+            }
+        }
+
+        if (!workstation) {
+            return res.status(404).json({ success: false, message: 'Workstation not found' });
+        }
+
+        previousStatus = workstation.status;
+        wsNumber = workstation.workstationNumber;
+        workstation.status = status;
+        if (notes) {
+            workstation.notes = notes;
+        }
+
+        await lab.save();
+
+        // Audit log for lab-level workstation status update
+        await AuditLog.create({
+            user: req.user._id,
+            action: 'workstation.status_change',
+            resource: 'Workstation',
+            resourceId: req.params.workstationId,
+            details: `Updated workstation ${wsNumber} in lab ${lab.name} from ${previousStatus} to ${status}`,
+            previousValue: { status: previousStatus },
+            newValue: { status },
+            ipAddress: req.ip
+        });
+
+        res.json({ 
+            success: true, 
+            message: 'Workstation status updated',
+            workstation
+        });
+    } catch (error) {
+        console.error('Update workstation error:', error);
         res.status(500).json({ success: false, message: 'Server error' });
     }
 };
@@ -110,18 +333,49 @@ exports.getAvailability = async (req, res) => {
         const endOfDay = new Date(date);
         endOfDay.setHours(23, 59, 59, 999);
 
+        // Get all bookings for this lab on this date
         const bookings = await Booking.find({
             lab: req.params.id,
             date: { $gte: startOfDay, $lte: endOfDay },
             status: { $in: ['pending', 'confirmed'] }
         });
 
-        const availability = lab.workstations.map(ws => {
+        // Get all reservations (teacher classes) for this lab on this date
+        const reservations = await Reservation.find({
+            lab: req.params.id,
+            date: { $gte: startOfDay, $lte: endOfDay },
+            status: 'approved'
+        });
+
+        // Get all workstations including from rooms (for labs like Tewodros Veterinary)
+        let allWorkstations = [];
+        
+        // Add room-based workstations with room info
+        if (lab.rooms && lab.rooms.length > 0) {
+            lab.rooms.forEach(room => {
+                if (room.workstations && room.workstations.length > 0) {
+                    room.workstations.forEach(ws => {
+                        allWorkstations.push({
+                            ...ws.toObject(),
+                            roomName: room.name,
+                            roomType: room.type
+                        });
+                    });
+                }
+            });
+        }
+
+        // Fallback: use lab-level workstations if no room workstations
+        if (allWorkstations.length === 0 && lab.workstations && lab.workstations.length > 0) {
+            allWorkstations = lab.workstations.map(ws => ws.toObject());
+        }
+
+        const availability = allWorkstations.map(ws => {
             const workstationBookings = bookings.filter(
                 b => b.workstation.workstationId.toString() === ws._id.toString()
             );
             return {
-                ...ws.toObject(),
+                ...ws,
                 bookings: workstationBookings.map(b => ({
                     startTime: b.startTime,
                     endTime: b.endTime,
@@ -130,7 +384,19 @@ exports.getAvailability = async (req, res) => {
             };
         });
 
-        res.json({ success: true, date: new Date(date), availability });
+        // Add reservation info to the availability response
+        const reservationInfo = reservations.map(r => ({
+            startTime: r.startTime,
+            endTime: r.endTime,
+            courseName: r.courseName,
+            courseCode: r.courseCode,
+            teacherName: r.teacher?.name || 'Unknown',
+            roomName: r.roomName || null,
+            roomId: r.roomId || null,
+            status: r.status
+        }));
+
+        res.json({ success: true, date: new Date(date), availability, reservations: reservationInfo });
     } catch (error) {
         console.error('Get availability error:', error);
         res.status(500).json({ success: false, message: 'Server error' });
@@ -144,6 +410,19 @@ exports.createLab = async (req, res) => {
     try {
         const lab = new Lab(req.body);
         await lab.save();
+
+        // Audit log for lab creation
+        await AuditLog.create({
+            user: req.user._id,
+            action: 'lab.create',
+            resource: 'Lab',
+            resourceId: lab._id,
+            details: `Created lab: ${lab.name} (${lab.code}) at ${lab.campus}`,
+            previousValue: null,
+            newValue: { name: lab.name, code: lab.code, campus: lab.campus, capacity: lab.capacity },
+            ipAddress: req.ip
+        });
+
         res.status(201).json({ success: true, message: 'Lab created successfully', lab });
     } catch (error) {
         console.error('Create lab error:', error);
@@ -156,14 +435,29 @@ exports.createLab = async (req, res) => {
 // @access  Admin/Superadmin
 exports.updateLab = async (req, res) => {
     try {
+        const previousLab = await Lab.findById(req.params.id);
+        if (!previousLab) {
+            return res.status(404).json({ success: false, message: 'Lab not found' });
+        }
+
         const lab = await Lab.findByIdAndUpdate(
             req.params.id,
             { $set: req.body },
             { new: true, runValidators: true }
         ).populate('supervisor', 'name email');
-        if (!lab) {
-            return res.status(404).json({ success: false, message: 'Lab not found' });
-        }
+
+        // Audit log for lab update
+        await AuditLog.create({
+            user: req.user._id,
+            action: 'lab.update',
+            resource: 'Lab',
+            resourceId: lab._id,
+            details: `Updated lab: ${lab.name}`,
+            previousValue: { name: previousLab.name, capacity: previousLab.capacity, status: previousLab.status },
+            newValue: { name: lab.name, capacity: lab.capacity, status: lab.status },
+            ipAddress: req.ip
+        });
+
         res.json({ success: true, message: 'Lab updated successfully', lab });
     } catch (error) {
         console.error('Update lab error:', error);
@@ -171,8 +465,52 @@ exports.updateLab = async (req, res) => {
     }
 };
 
+// @route   DELETE /api/labs/:id/rooms/:roomId
+// @desc    Delete a room from a lab
+// @access  Admin/Superadmin
+exports.deleteRoom = async (req, res) => {
+    try {
+        const lab = await Lab.findById(req.params.id);
+        if (!lab) {
+            return res.status(404).json({ success: false, message: 'Lab not found' });
+        }
+
+        const roomIdToRemove = req.params.roomId;
+        const initialLength = lab.rooms.length;
+        lab.rooms = lab.rooms.filter(room => room._id.toString() !== roomIdToRemove);
+
+        if (lab.rooms.length === initialLength) {
+            return res.status(404).json({ success: false, message: 'Room not found in lab' });
+        }
+
+        // Recalculate total lab capacity
+        lab.capacity = lab.rooms.reduce((sum, room) => sum + room.capacity, 0);
+
+        await lab.save();
+
+        // Audit log for room deletion
+        await AuditLog.create({
+            user: req.user._id,
+            action: 'lab.room_deleted',
+            resource: 'Lab',
+            resourceId: lab._id,
+            details: `Deleted room ${roomIdToRemove} from lab: ${lab.name}`,
+            ipAddress: req.ip
+        });
+
+        res.json({
+            success: true,
+            message: 'Room deleted successfully',
+            lab
+        });
+    } catch (error) {
+        console.error('Delete room error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
 // @route   DELETE /api/labs/:id
-// @desc    Delete lab (admin only)
+// @desc    Delete lab (soft delete)
 // @access  Admin/Superadmin
 exports.deleteLab = async (req, res) => {
     try {
@@ -180,8 +518,23 @@ exports.deleteLab = async (req, res) => {
         if (!lab) {
             return res.status(404).json({ success: false, message: 'Lab not found' });
         }
+
+        const labName = lab.name;
         lab.isActive = false;
         await lab.save();
+
+        // Audit log for lab deletion
+        await AuditLog.create({
+            user: req.user._id,
+            action: 'lab.delete',
+            resource: 'Lab',
+            resourceId: lab._id,
+            details: `Deactivated lab: ${labName}`,
+            previousValue: { isActive: true, name: labName },
+            newValue: { isActive: false },
+            ipAddress: req.ip
+        });
+
         res.json({ success: true, message: 'Lab deactivated successfully' });
     } catch (error) {
         console.error('Delete lab error:', error);

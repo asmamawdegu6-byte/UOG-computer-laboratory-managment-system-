@@ -1,62 +1,24 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import heroImage from '../../assets/hero.png';
+import uogLogo from '../../assets/UOG LOGO.png';
 import './Home.css';
+
+// Unsplash images for university/computer lab context
+const HERO_BG = 'https://images.unsplash.com/photo-1562774053-701939374585?w=1920&auto=format&fit=crop&q=80';
+const LAB_IMAGE = 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=800&auto=format&fit=crop&q=80';
+const STUDENTS_IMAGE = 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=800&auto=format&fit=crop&q=80';
+const EQUIPMENT_IMAGE = 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=800&auto=format&fit=crop&q=80';
 
 const Home = () => {
   return (
     <div className="home-page">
-      {/* Navigation Header */}
-      <nav className="home-nav">
-        <div className="nav-brand">
-          {/* University of Gondar Logo - Shield Design */}
-          <svg className="nav-logo" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-            {/* Shield outline */}
-            <path d="M100 5 L185 45 L185 130 Q185 170 100 195 Q15 170 15 130 L15 45 Z" fill="#1e3a8a" stroke="#fbbf24" strokeWidth="4" />
-            {/* Inner shield */}
-            <path d="M100 20 L170 52 L170 125 Q170 158 100 180 Q30 158 30 125 L30 52 Z" fill="#1e40af" />
-            {/* Yellow cross - vertical */}
-            <rect x="92" y="20" width="16" height="160" fill="#fbbf24" />
-            {/* Yellow cross - horizontal */}
-            <rect x="30" y="92" width="140" height="16" fill="#fbbf24" />
-            {/* Open book in center */}
-            <path d="M65 75 L100 60 L135 75 L135 115 L100 125 L65 115 Z" fill="#fbbf24" opacity="0.95" />
-            <path d="M100 60 L100 125" stroke="#1e3a8a" strokeWidth="2" />
-            {/* Book lines - left page */}
-            <line x1="72" y1="80" x2="95" y2="72" stroke="#1e3a8a" strokeWidth="1.5" />
-            <line x1="72" y1="88" x2="95" y2="80" stroke="#1e3a8a" strokeWidth="1.5" />
-            <line x1="72" y1="96" x2="95" y2="88" stroke="#1e3a8a" strokeWidth="1.5" />
-            {/* Book lines - right page */}
-            <line x1="105" y1="72" x2="128" y2="80" stroke="#1e3a8a" strokeWidth="1.5" />
-            <line x1="105" y1="80" x2="128" y2="88" stroke="#1e3a8a" strokeWidth="1.5" />
-            <line x1="105" y1="88" x2="128" y2="96" stroke="#1e3a8a" strokeWidth="1.5" />
-            {/* Star on top */}
-            <polygon points="100,8 104,20 117,20 107,28 111,41 100,33 89,41 93,28 83,20 96,20" fill="#fbbf24" />
-            {/* University text */}
-            <text x="100" y="150" textAnchor="middle" fontSize="11" fontWeight="bold" fill="white" fontFamily="serif">UNIVERSITY</text>
-            <text x="100" y="165" textAnchor="middle" fontSize="11" fontWeight="bold" fill="white" fontFamily="serif">OF GONDAR</text>
-          </svg>
-          <div className="nav-brand-text">
-            <span className="nav-title">University of Gondar</span>
-            <span className="nav-subtitle">Computer Lab Management</span>
-          </div>
-        </div>
-        <div className="nav-links">
-          <Link to="/" className="nav-link active">Home</Link>
-          <Link to="/services" className="nav-link">Services</Link>
-          <Link to="/about" className="nav-link">About</Link>
-          <Link to="/contact" className="nav-link">Contact</Link>
-          <Link to="/login" className="nav-link nav-login-btn">Login</Link>
-        </div>
-      </nav>
-
       {/* Hero Section with Full-Screen Background */}
-      <section className="hero-section" style={{ backgroundImage: `url(${heroImage})` }}>
+      <section className="hero-section" style={{ backgroundImage: `url(${HERO_BG})` }}>
         <div className="hero-overlay"></div>
         <div className="hero-content">
           <h1 className="hero-title">
-            University of Gondar
-            <span className="hero-highlight">Computer Lab Management</span>
+            Welcome to
+            <span className="hero-highlight">Computer laboratory managment system for uog</span>
           </h1>
           <p className="hero-description">
             Streamline your computer laboratory operations with our comprehensive management system.
@@ -127,6 +89,40 @@ const Home = () => {
         </div>
       </section>
 
+      {/* Lab Image Showcase */}
+      <section className="lab-showcase">
+        <div className="showcase-grid">
+          <div className="showcase-card main-showcase">
+            <img src={LAB_IMAGE} alt="Computer Lab" />
+            <div className="showcase-overlay">
+              <span className="showcase-icon">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="2" y="3" width="20" height="14" rx="2" stroke="currentColor" strokeWidth="2" />
+                  <path d="M8 21h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                  <path d="M12 17v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+              </span>
+              <h3>Modern Computer Labs</h3>
+              <p>State-of-the-art facilities with latest equipment</p>
+            </div>
+          </div>
+          <div className="showcase-card">
+            <img src={STUDENTS_IMAGE} alt="Students" />
+            <div className="showcase-overlay">
+              <h3>Active Learning</h3>
+              <p>Students engaged in practical computing</p>
+            </div>
+          </div>
+          <div className="showcase-card">
+            <img src={EQUIPMENT_IMAGE} alt="Equipment" />
+            <div className="showcase-overlay">
+              <h3>Quality Equipment</h3>
+              <p>High-performance workstations and peripherals</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Features Section */}
       <section className="features-section">
         <h2 className="section-title">Key Features</h2>
@@ -184,58 +180,11 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Stats Section */}
-      <section className="stats-section">
-        <div className="stats-container">
-          <div className="stat-item">
-            <span className="stat-number">10+</span>
-            <span className="stat-label">Computer Labs</span>
-          </div>
-          <div className="stat-item">
-            <span className="stat-number">500+</span>
-            <span className="stat-label">Workstations</span>
-          </div>
-          <div className="stat-item">
-            <span className="stat-number">5000+</span>
-            <span className="stat-label">Students Served</span>
-          </div>
-          <div className="stat-item">
-            <span className="stat-number">99%</span>
-            <span className="stat-label">Uptime</span>
-          </div>
-        </div>
-      </section>
-
       {/* Footer */}
       <footer className="home-footer">
         <div className="footer-content">
           <div className="footer-brand">
-            <svg className="footer-logo" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-              {/* Shield outline */}
-              <path d="M100 5 L185 45 L185 130 Q185 170 100 195 Q15 170 15 130 L15 45 Z" fill="#1e3a8a" stroke="#fbbf24" strokeWidth="4" />
-              {/* Inner shield */}
-              <path d="M100 20 L170 52 L170 125 Q170 158 100 180 Q30 158 30 125 L30 52 Z" fill="#1e40af" />
-              {/* Yellow cross - vertical */}
-              <rect x="92" y="20" width="16" height="160" fill="#fbbf24" />
-              {/* Yellow cross - horizontal */}
-              <rect x="30" y="92" width="140" height="16" fill="#fbbf24" />
-              {/* Open book in center */}
-              <path d="M65 75 L100 60 L135 75 L135 115 L100 125 L65 115 Z" fill="#fbbf24" opacity="0.95" />
-              <path d="M100 60 L100 125" stroke="#1e3a8a" strokeWidth="2" />
-              {/* Book lines - left page */}
-              <line x1="72" y1="80" x2="95" y2="72" stroke="#1e3a8a" strokeWidth="1.5" />
-              <line x1="72" y1="88" x2="95" y2="80" stroke="#1e3a8a" strokeWidth="1.5" />
-              <line x1="72" y1="96" x2="95" y2="88" stroke="#1e3a8a" strokeWidth="1.5" />
-              {/* Book lines - right page */}
-              <line x1="105" y1="72" x2="128" y2="80" stroke="#1e3a8a" strokeWidth="1.5" />
-              <line x1="105" y1="80" x2="128" y2="88" stroke="#1e3a8a" strokeWidth="1.5" />
-              <line x1="105" y1="88" x2="128" y2="96" stroke="#1e3a8a" strokeWidth="1.5" />
-              {/* Star on top */}
-              <polygon points="100,8 104,20 117,20 107,28 111,41 100,33 89,41 93,28 83,20 96,20" fill="#fbbf24" />
-              {/* University text */}
-              <text x="100" y="150" textAnchor="middle" fontSize="11" fontWeight="bold" fill="white" fontFamily="serif">UNIVERSITY</text>
-              <text x="100" y="165" textAnchor="middle" fontSize="11" fontWeight="bold" fill="white" fontFamily="serif">OF GONDAR</text>
-            </svg>
+            <img src={uogLogo} alt="University of Gondar Logo" className="footer-logo-img" />
             <span>University of Gondar - Computer Lab Management</span>
           </div>
           <div className="footer-links">

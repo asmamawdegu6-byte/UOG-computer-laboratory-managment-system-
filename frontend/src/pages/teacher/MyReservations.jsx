@@ -90,6 +90,11 @@ const MyReservations = () => {
             render: (row) => <strong>{row.lab?.name || 'N/A'}</strong>
         },
         {
+            header: 'Room',
+            accessor: 'roomName',
+            render: (row) => row.roomName || 'N/A'
+        },
+        {
             header: 'Course',
             accessor: 'courseName',
             render: (row) => (
@@ -212,6 +217,10 @@ const MyReservations = () => {
                                 <div className="detail-row">
                                     <strong>Lab:</strong>
                                     <span>{selectedReservation.lab?.name || 'N/A'} ({selectedReservation.lab?.code})</span>
+                                </div>
+                                <div className="detail-row">
+                                    <strong>Room:</strong>
+                                    <span>{selectedReservation.roomName || 'N/A'}</span>
                                 </div>
                                 <div className="detail-row">
                                     <strong>Course:</strong>

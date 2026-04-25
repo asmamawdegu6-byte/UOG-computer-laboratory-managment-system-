@@ -53,5 +53,11 @@ export const userService = {
   resetUserPassword: async (id, newPassword) => {
     const response = await api.put(`/users/${id}/reset-password`, { newPassword });
     return response.data;
+  },
+
+  // Toggle own account status (activate/deactivate)
+  toggleUserStatus: async (id) => {
+    const response = await api.put(`/users/${id}/toggle-status`);
+    return response.data;
   }
 };

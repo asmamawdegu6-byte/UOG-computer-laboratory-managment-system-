@@ -41,5 +41,11 @@ export const labService = {
   deleteLab: async (id) => {
     const response = await api.delete(`/labs/${id}`);
     return response.data;
+  },
+
+  // Delete a room from a lab
+  deleteRoom: async (labId, roomId) => {
+    const response = await api.delete(`/labs/${labId}/rooms/${roomId}`);
+    return response.data;
   }
 };

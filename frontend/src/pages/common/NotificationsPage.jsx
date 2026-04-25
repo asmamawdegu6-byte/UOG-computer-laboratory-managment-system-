@@ -20,7 +20,7 @@ const NotificationsPage = () => {
   const [page, setPage] = useState(1);
 
   useEffect(() => {
-    const params = { page, limit: 20 };
+    const params = { page, limit: 1000 };
     if (filter === 'unread') params.isRead = false;
     else if (filter === 'read') params.isRead = true;
     fetchNotifications(params);

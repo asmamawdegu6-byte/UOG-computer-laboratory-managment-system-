@@ -1,5 +1,81 @@
+const logger = require('../utils/logger');
+const AuditLog = require('../models/AuditLog');
+
 const errorHandler = (err, req, res, next) => {
-    console.error('Error:', err);
+    logger.error('API Error', {
+        error: err.message,
+        stack: err.stack,
+        method: req.method,
+        path: req.originalUrl,
+        body: req.body,
+        ip: req.ip
+    });
+
+    // Determine error category and severity
+    let auditAction = null;
+    let auditDetails = null;
+    let severity = 'low';
+
+    // Authentication errors (401)
+    if (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError') {
+        auditAction = 'auth.error';
+        auditDetails = `Authentication error: ${err.message}`;
+        severity = 'medium';
+    } else if (res.statusCode === 401) {
+        auditAction = 'auth.failed_login';
+        auditDetails = `Authentication failed: ${err.message}`;
+        severity = 'medium';
+    }
+    // Authorization errors (403)
+    else if (res.statusCode === 403) {
+        auditAction = 'security.access_denied';
+        auditDetails = `Access denied: ${err.message}`;
+        severity = 'high';
+    }
+    // Validation errors
+    else if (err.name === 'ValidationError') {
+        auditAction = 'system.validation_error';
+        auditDetails = `Validation error: ${Object.values(err.errors).map(e => e.message).join(', ')}`;
+        severity = 'low';
+    }
+    // Duplicate key errors (potential injection or conflict)
+    else if (err.code === 11000) {
+        auditAction = 'system.duplicate_conflict';
+        auditDetails = `Duplicate key conflict: ${JSON.stringify(err.keyValue)}`;
+        severity = 'medium';
+    }
+    // Server errors (500)
+    else if (res.statusCode === 500 || !res.statusCode) {
+        auditAction = 'system.error';
+        auditDetails = `Internal server error: ${err.message}`;
+        severity = 'high';
+    }
+
+    // Create audit log for security/significant errors (async, don't block response)
+    if (auditAction && req.user) {
+        AuditLog.create({
+            user: req.user._id,
+            action: auditAction,
+            resource: 'System',
+            details: auditDetails,
+            ipAddress: req.ip,
+            userAgent: req.headers?.['user-agent']
+        }).catch(auditErr => {
+            logger.error('Failed to create audit log for error:', auditErr);
+        });
+    } else if (auditAction) {
+        // Log even without authenticated user (e.g., login failures)
+        AuditLog.create({
+            user: null,
+            action: auditAction,
+            resource: 'System',
+            details: `${auditDetails} - IP: ${req.ip}, Path: ${req.originalUrl}`,
+            ipAddress: req.ip,
+            userAgent: req.headers?.['user-agent']
+        }).catch(auditErr => {
+            logger.error('Failed to create audit log for error:', auditErr);
+        });
+    }
 
     // Mongoose validation error
     if (err.name === 'ValidationError') {

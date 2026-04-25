@@ -1,0 +1,184 @@
+.tech-computer-check {
+  padding: 1.5rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.tech-computer-check .page-header {
+  margin-bottom: 1.5rem;
+}
+
+.tech-computer-check .page-header h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 0.25rem;
+}
+
+.tech-computer-check .page-header p {
+  color: #64748b;
+  margin: 0;
+}
+
+.status-message {
+  background: #d1fae5;
+  color: #065f46;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  margin-top: 0.5rem;
+}
+
+/* Lab Selector */
+.lab-selector-card, .room-selector-card {
+  margin-bottom: 1.5rem;
+}
+
+.lab-buttons, .room-buttons {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.lab-button, .room-button {
+  padding: 0.75rem 1.5rem;
+  border: 2px solid #e5e7eb;
+  background: white;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.lab-button:hover, .room-button:hover {
+  border-color: #3b82f6;
+  background: #eff6ff;
+}
+
+.lab-button.active, .room-button.active {
+  background: #3b82f6;
+  color: white;
+  border-color: #3b82f6;
+}
+
+.room-type-badge {
+  display: block;
+  font-size: 0.7rem;
+  opacity: 0.8;
+  margin-top: 0.25rem;
+}
+
+/* Computer Stats */
+.computer-grid-card {
+  margin-bottom: 1.5rem;
+}
+
+.computer-stats {
+  display: flex;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: #f8fafc;
+  border-radius: 8px;
+  flex-wrap: wrap;
+}
+
+.computer-stats .stat {
+  font-weight: 600;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+}
+
+.computer-stats .stat.available { background: #d1fae5; color: #065f46; }
+.computer-stats .stat.occupied { background: #dbeafe; color: #1e40af; }
+.computer-stats .stat.broken { background: #fee2e2; color: #991b1b; }
+.computer-stats .stat.maintenance { background: #f3f4f6; color: #374151; }
+
+/* Computer Grid */
+.computer-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.computer-item {
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-left-width: 4px;
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.computer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.computer-number {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.computer-status {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  color: white;
+}
+
+.computer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.status-btn {
+  font-size: 0.65rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.status-btn:hover:not(:disabled) {
+  transform: scale(1.05);
+}
+
+.status-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.status-btn.current {
+  font-weight: 600;
+}
+
+.computer-item.broken {
+  background: #fef2f2;
+}
+
+.computer-item.maintenance {
+  background: #f9fafb;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 2rem;
+  color: #64748b;
+}
+
+.loading {
+  text-align: center;
+  padding: 2rem;
+  color: #64748b;
+}
+
+@media (max-width: 768px) {
+  .computer-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  }
+}

@@ -1,51 +1,109 @@
 /* Auth styles */
 
 .register-container {
-    max-width: 500px;
+    --register-accent: #1d4ed8;
+    --register-muted: #64748b;
+    width: 100%;
+    max-width: 1080px;
     margin: 0 auto;
-    padding: 2rem;
+    padding: 0;
+}
+
+.register-hero {
+    display: block;
+    margin-bottom: 1.25rem;
+    padding: 1.15rem 1.2rem;
+    border: 1px solid #dbeafe;
+    border-radius: 18px;
+    background:
+        radial-gradient(circle at top right, rgba(37, 99, 235, 0.12), transparent 35%),
+        linear-gradient(135deg, #f8fbff 0%, #eff6ff 100%);
+}
+
+.register-form {
+    width: 100%;
+    max-width: 1080px;
+}
+
+.register-section {
+    margin-bottom: 1rem;
+    padding: 1rem 1.1rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    box-shadow: 0 12px 24px rgba(15, 23, 42, 0.04);
+}
+
+.register-section-highlight {
+    border-color: #bfdbfe;
+    background:
+        radial-gradient(circle at top right, rgba(59, 130, 246, 0.12), transparent 28%),
+        linear-gradient(180deg, #ffffff 0%, #eff6ff 100%);
+}
+
+.register-section-header {
+    margin-bottom: 0.85rem;
+}
+
+.register-section-header h3 {
+    margin: 0 0 0.2rem;
+    font-size: 1rem;
+    color: #0f172a;
+}
+
+.register-section-header p {
+    margin: 0;
+    font-size: 0.86rem;
+    color: var(--register-muted);
+}
+
+.register-form .form-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.register-form .form-row-single {
+    grid-template-columns: 1fr;
+}
+
+.register-form .form-group {
+    min-width: 0;
+    margin-bottom: 10px;
 }
 
 .register-container h2 {
     font-size: 1.5rem;
-    font-weight: 600;
+    font-weight: 700;
     color: #1e293b;
     margin-bottom: 0.5rem;
     text-align: center;
 }
 
-.register-container > p {
+.register-container>p {
     text-align: center;
     color: #64748b;
-    margin-bottom: 1.5rem;
-}
-
-.register-form .form-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1rem;
-}
-
-.register-form .form-group {
-    margin-bottom: 1rem;
+    margin-bottom: 0.85rem;
+    font-size: 1rem;
 }
 
 .register-form label {
     display: block;
-    font-size: 0.875rem;
-    font-weight: 500;
+    font-size: 0.9rem;
+    font-weight: 600;
     color: #374151;
-    margin-bottom: 0.375rem;
+    margin-bottom: 0.25rem;
 }
 
 .register-form input,
 .register-form select {
     width: 100%;
-    padding: 0.625rem 0.75rem;
-    border: 1px solid #d1d5db;
-    border-radius: 0.375rem;
-    font-size: 0.875rem;
+    padding: 0.65rem 0.8rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.8rem;
+    font-size: 0.9rem;
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    background-color: rgba(255, 255, 255, 0.98);
 }
 
 .register-form input:focus,
@@ -69,35 +127,35 @@
     display: block;
     font-size: 0.75rem;
     color: #ef4444;
-    margin-top: 0.25rem;
+    margin-top: 0.2rem;
 }
 
 .hint-text {
     display: block;
     font-size: 0.75rem;
     color: #6b7280;
-    margin-top: 0.25rem;
+    margin-top: 0.2rem;
 }
 
 .error-message {
     background-color: #fef2f2;
     border: 1px solid #fecaca;
-    border-radius: 0.5rem;
-    padding: 1rem;
-    margin-bottom: 1.5rem;
+    border-radius: 1rem;
+    padding: 0.75rem;
+    margin-bottom: 1rem;
     color: #991b1b;
     font-size: 0.875rem;
 }
 
 .existing-account-actions {
-    margin-top: 1rem;
-    padding-top: 1rem;
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
     border-top: 1px solid #fecaca;
 }
 
 .existing-account-actions p {
     color: #991b1b;
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.5rem;
     font-size: 0.875rem;
 }
 
@@ -108,7 +166,7 @@
 .success-message {
     background-color: #f0fdf4;
     border: 1px solid #bbf7d0;
-    border-radius: 0.5rem;
+    border-radius: 1rem;
     padding: 1.5rem;
     margin-bottom: 1.5rem;
     color: #166534;
@@ -133,7 +191,9 @@
 
 .register-btn {
     width: 100%;
-    margin-top: 0.5rem;
+    margin-top: 0.75rem;
+    min-height: 3rem;
+    border-radius: 0.9rem;
 }
 
 .login-link {
@@ -154,6 +214,12 @@
 }
 
 @media (max-width: 500px) {
+    .register-hero,
+    .register-section {
+        padding: 0.9rem;
+        border-radius: 14px;
+    }
+
     .register-form .form-row {
         grid-template-columns: 1fr;
     }

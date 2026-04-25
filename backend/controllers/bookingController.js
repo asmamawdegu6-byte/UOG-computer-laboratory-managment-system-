@@ -1,14 +1,64 @@
 const Booking = require('../models/Booking');
 const Lab = require('../models/Lab');
+const Reservation = require('../models/Reservation');
 const { notifyByRole, createNotification } = require('./notificationController');
+const logger = require('../utils/logger');
+const AuditLog = require('../models/AuditLog');
+
+const timesOverlap = (startA, endA, startB, endB) => startA < endB && startB < endA;
+
+const sameDayKey = (dateValue) => {
+    const date = new Date(dateValue);
+    return Number.isNaN(date.getTime()) ? '' : date.toISOString().split('T')[0];
+};
+
+const findBookingRoomInfo = (booking) => {
+    const workstationId = booking?.workstation?.workstationId?.toString();
+    const rooms = booking?.lab?.rooms || [];
+
+    for (const room of rooms) {
+        const hasWorkstation = (room.workstations || []).some(ws => ws._id.toString() === workstationId);
+        if (hasWorkstation) {
+            return {
+                roomId: room._id?.toString() || null,
+                roomName: room.name || null
+            };
+        }
+    }
+
+    return { roomId: null, roomName: null };
+};
+
+const reservationsConflict = (a, b) => {
+    if (a.lab?._id?.toString() !== b.lab?._id?.toString()) return false;
+    if (sameDayKey(a.date) !== sameDayKey(b.date)) return false;
+    if (!timesOverlap(a.startTime, a.endTime, b.startTime, b.endTime)) return false;
+
+    const roomA = a.roomId?.toString() || null;
+    const roomB = b.roomId?.toString() || null;
+
+    if (!roomA || !roomB) return true;
+    return roomA === roomB;
+};
 
 // @route   GET /api/bookings
 // @desc    Get all bookings (admin only)
 // @access  Admin/Superadmin
 exports.getAllBookings = async (req, res) => {
     try {
-        const { status, lab, date, page = 1, limit = 20 } = req.query;
+        const { status, lab, date, page = 1, limit = 1000 } = req.query;
         let query = {};
+
+        // Campus filtering: Admins and Technicians only see their own campus
+        if (req.user.role === 'admin' || req.user.role === 'technician') {
+            if (req.user.campus) {
+                const Lab = require('../models/Lab');
+                const campusLabs = await Lab.find({ campus: req.user.campus }).select('_id');
+                const labIds = campusLabs.map(l => l._id);
+                query.lab = { $in: labIds };
+            }
+        }
+
         if (status) query.status = status;
         if (lab) query.lab = lab;
         if (date) {
@@ -21,7 +71,7 @@ exports.getAllBookings = async (req, res) => {
 
         const skip = (parseInt(page) - 1) * parseInt(limit);
         const bookings = await Booking.find(query)
-            .populate('user', 'name username email')
+            .populate('user', 'name username email studentId')
             .populate('lab', 'name code')
             .skip(skip)
             .limit(parseInt(limit))
@@ -96,25 +146,99 @@ exports.createBooking = async (req, res) => {
     try {
         const { labId, workstationId, date, startTime, endTime, purpose } = req.body;
 
+        console.log('[CREATE BOOKING] Request body:', { labId, workstationId, date, startTime, endTime, purpose });
+        console.log('[CREATE BOOKING] User:', req.user?.name, req.user?._id);
+
         const lab = await Lab.findById(labId);
         if (!lab) {
             return res.status(404).json({ success: false, message: 'Lab not found' });
         }
+        console.log('[CREATE BOOKING] Lab found:', lab.name);
+        console.log('[CREATE BOOKING] Lab rooms count:', lab.rooms.length);
 
-        const workstation = lab.workstations.id(workstationId);
-        if (!workstation) {
-            return res.status(404).json({ success: false, message: 'Workstation not found' });
+        // Find workstation in rooms
+        let workstation = null;
+        let room = null;
+        for (const r of lab.rooms) {
+          const ws = r.workstations.find(ws => ws._id.toString() === workstationId);
+          if (ws) {
+            workstation = ws;
+            room = r;
+            break;
+          }
         }
 
-        const overlap = await Booking.checkOverlap(labId, workstationId, date, startTime, endTime);
+        // Fallback to top-level workstations if not found in rooms (legacy)
+        if (!workstation) {
+          workstation = lab.workstations.find(ws => ws._id.toString() === workstationId);
+        }
+
+        if (!workstation) {
+          console.log('[CREATE BOOKING] Workstation not found in lab rooms or lab workstations');
+          return res.status(404).json({ success: false, message: 'Workstation not found' });
+        }
+        console.log('[CREATE BOOKING] Workstation found:', workstation.workstationNumber);
+
+        const roomId = room?._id || null;
+
+        // Check gender-based room restrictions if room is identified
+        // Use req.user directly since auth middleware already verified the user
+        const user = req.user;
+
+        if (room) {
+            if (room.type === 'female_only' && user.gender !== 'female') {
+                return res.status(403).json({ success: false, message: 'Access denied: This room is restricted to female students only.' });
+            }
+            if (room.type === 'male_only' && user.gender !== 'male') {
+                return res.status(403).json({ success: false, message: 'Access denied: This room is restricted to male students only.' });
+            }
+        } else {
+            // If room not determined but workstation was found at top-level, we cannot enforce gender restriction.
+            // Could log warning or proceed.
+        }
+
+        // Check for overlap with proper date handling
+        const bookingDate = new Date(date);
+        console.log('[CREATE BOOKING] Booking date:', bookingDate);
+        
+        const overlap = await Booking.checkOverlap(labId, workstationId, bookingDate, startTime, endTime);
         if (overlap) {
             return res.status(409).json({ success: false, message: 'Time slot is already booked' });
+        }
+
+        const reservationDayStart = new Date(date);
+        reservationDayStart.setHours(0, 0, 0, 0);
+        const reservationDayEnd = new Date(date);
+        reservationDayEnd.setHours(23, 59, 59, 999);
+
+        const reservationConflictQuery = {
+            lab: labId,
+            date: { $gte: reservationDayStart, $lte: reservationDayEnd },
+            status: 'approved',
+            startTime: { $lt: endTime },
+            endTime: { $gt: startTime },
+            $or: [
+                { roomId: roomId || null },
+                { roomId: null }
+            ]
+        };
+
+        const overlappingReservation = await Reservation.findOne(reservationConflictQuery);
+        if (overlappingReservation) {
+            return res.status(409).json({
+                success: false,
+                message: 'This workstation is unavailable because the room is reserved for a class during that time'
+            });
         }
 
         const booking = new Booking({
             user: req.user._id,
             lab: labId,
-            workstation: { workstationId: workstation._id, workstationNumber: workstation.workstationNumber },
+            workstation: { 
+                workstationId: workstation._id, 
+                workstationNumber: workstation.workstationNumber,
+                roomName: room ? room.name : null 
+            },
             date: new Date(date),
             startTime,
             endTime,
@@ -123,8 +247,17 @@ exports.createBooking = async (req, res) => {
 
         await booking.save();
 
-        workstation.status = 'reserved';
-        await lab.save();
+        // Audit log for booking creation
+        await AuditLog.create({
+            user: req.user._id,
+            action: 'booking.create',
+            resource: 'Booking',
+            resourceId: booking._id,
+            details: `Created booking for lab: ${lab.name}, workstation: ${workstation.workstationNumber}, date: ${new Date(date).toLocaleDateString()}`,
+            previousValue: null,
+            newValue: { lab: lab.name, workstation: workstation.workstationNumber, date, startTime, endTime, purpose },
+            ipAddress: req.ip
+        });
 
         // Notify user about booking creation
         await createNotification({
@@ -153,7 +286,21 @@ exports.createBooking = async (req, res) => {
         res.status(201).json({ success: true, message: 'Booking created successfully', booking });
     } catch (error) {
         console.error('Create booking error:', error);
-        res.status(500).json({ success: false, message: 'Server error' });
+        console.error('Error stack:', error.stack);
+        
+        // Try to return a more helpful error message
+        let errorMessage = 'Server error';
+        if (error.name === 'ValidationError') {
+            errorMessage = 'Validation error: ' + error.message;
+        } else if (error.name === 'CastError') {
+            errorMessage = 'Invalid ID format';
+        } else if (error.code === 11000) {
+            errorMessage = 'Duplicate entry';
+        } else if (error.message) {
+            errorMessage = error.message;
+        }
+        
+        res.status(500).json({ success: false, message: errorMessage });
     }
 };
 
@@ -181,14 +328,17 @@ exports.cancelBooking = async (req, res) => {
         booking.cancellationReason = req.body.reason || 'User cancelled';
         await booking.save();
 
-        const lab = await Lab.findById(booking.lab);
-        if (lab) {
-            const workstation = lab.workstations.id(booking.workstation.workstationId);
-            if (workstation) {
-                workstation.status = 'available';
-                await lab.save();
-            }
-        }
+        // Audit log for booking cancellation
+        await AuditLog.create({
+            user: req.user._id,
+            action: 'booking.cancel',
+            resource: 'Booking',
+            resourceId: booking._id,
+            details: `Cancelled booking for lab: ${lab?.name || 'a lab'} on ${new Date(booking.date).toLocaleDateString()}`,
+            previousValue: { status: 'pending' },
+            newValue: { status: 'cancelled', cancellationReason: booking.cancellationReason },
+            ipAddress: req.ip
+        });
 
         // Notify the booking owner about cancellation
         await createNotification({
@@ -215,35 +365,47 @@ exports.cancelBooking = async (req, res) => {
 // @access  Admin/Superadmin
 exports.updateStatus = async (req, res) => {
     try {
+        console.log('========== UPDATE BOOKING STATUS STARTED ==========');
+        console.log('Booking ID:', req.params.id);
+        console.log('New status:', req.body.status);
+        console.log('User:', { id: req.user?._id, role: req.user?.role });
+        
         const { status } = req.body;
         const validStatuses = ['pending', 'confirmed', 'cancelled', 'completed', 'no-show'];
         if (!validStatuses.includes(status)) {
+            console.log('Invalid status:', status);
             return res.status(400).json({ success: false, message: 'Invalid status' });
         }
 
         const booking = await Booking.findById(req.params.id);
         if (!booking) {
+            console.log('Booking not found');
             return res.status(404).json({ success: false, message: 'Booking not found' });
         }
 
+        console.log('Current booking status:', booking.status);
+        
+        const previousStatus = booking.status;
         booking.status = status;
         if (status === 'cancelled') {
             booking.cancelledAt = new Date();
         }
         await booking.save();
         await booking.populate('user lab');
+        
+        console.log('Booking status updated to:', status);
 
-        // Update workstation status if cancelled
-        if (status === 'cancelled') {
-            const lab = await Lab.findById(booking.lab);
-            if (lab) {
-                const workstation = lab.workstations.id(booking.workstation.workstationId);
-                if (workstation) {
-                    workstation.status = 'available';
-                    await lab.save();
-                }
-            }
-        }
+        // Audit log for booking status change
+        await AuditLog.create({
+            user: req.user._id,
+            action: 'booking.status_change',
+            resource: 'Booking',
+            resourceId: booking._id,
+            details: `Updated booking status from ${previousStatus} to ${status}`,
+            previousValue: { status: previousStatus },
+            newValue: { status: status },
+            ipAddress: req.ip
+        });
 
         // Notify user about booking status change
         const statusMessages = {
@@ -270,7 +432,8 @@ exports.updateStatus = async (req, res) => {
         res.json({ success: true, message: `Booking ${status} successfully`, booking });
     } catch (error) {
         console.error('Update booking status error:', error);
-        res.status(500).json({ success: false, message: 'Server error' });
+        console.error('Error stack:', error.stack);
+        res.status(500).json({ success: false, message: 'Server error: ' + error.message });
     }
 };
 
@@ -305,8 +468,11 @@ exports.checkin = async (req, res) => {
 exports.detectConflicts = async (req, res) => {
     try {
         const { date, lab } = req.query;
-        let query = {
+        let bookingQuery = {
             status: { $in: ['pending', 'confirmed'] }
+        };
+        let reservationQuery = {
+            status: { $in: ['pending', 'approved'] }
         };
 
         if (date) {
@@ -314,29 +480,37 @@ exports.detectConflicts = async (req, res) => {
             startOfDay.setHours(0, 0, 0, 0);
             const endOfDay = new Date(date);
             endOfDay.setHours(23, 59, 59, 999);
-            query.date = { $gte: startOfDay, $lte: endOfDay };
+            bookingQuery.date = { $gte: startOfDay, $lte: endOfDay };
+            reservationQuery.date = { $gte: startOfDay, $lte: endOfDay };
         }
-        if (lab) query.lab = lab;
+        if (lab) {
+            bookingQuery.lab = lab;
+            reservationQuery.lab = lab;
+        }
 
-        const bookings = await Booking.find(query)
-            .populate('user', 'name username email')
-            .populate('lab', 'name code')
-            .sort({ date: 1, startTime: 1 });
+        const [bookings, reservations] = await Promise.all([
+            Booking.find(bookingQuery)
+                .populate('user', 'name username email')
+                .populate('lab', 'name code rooms'),
+            Reservation.find(reservationQuery)
+                .populate('teacher', 'name username email')
+                .populate('lab', 'name code')
+        ]);
 
-        // Group bookings by lab + workstation + date
-        const grouped = {};
+        const conflicts = [];
+
+        // 1. Student booking vs student booking on the same workstation.
+        const groupedBookings = {};
         bookings.forEach(booking => {
             const wsId = booking.workstation?.workstationId?.toString() || 'unknown';
             const labId = booking.lab?._id?.toString() || 'unknown';
-            const dateKey = new Date(booking.date).toISOString().split('T')[0];
+            const dateKey = sameDayKey(booking.date);
             const key = `${labId}-${wsId}-${dateKey}`;
-            if (!grouped[key]) grouped[key] = [];
-            grouped[key].push(booking);
+            if (!groupedBookings[key]) groupedBookings[key] = [];
+            groupedBookings[key].push(booking);
         });
 
-        // Find conflicts
-        const conflicts = [];
-        Object.entries(grouped).forEach(([key, groupBookings]) => {
+        Object.values(groupedBookings).forEach(groupBookings => {
             if (groupBookings.length < 2) return;
 
             for (let i = 0; i < groupBookings.length; i++) {
@@ -344,33 +518,121 @@ exports.detectConflicts = async (req, res) => {
                     const a = groupBookings[i];
                     const b = groupBookings[j];
 
-                    // Check time overlap
-                    if (a.startTime < b.endTime && b.startTime < a.endTime) {
-                        conflicts.push({
-                            booking1: {
-                                id: a._id,
-                                user: a.user,
-                                startTime: a.startTime,
-                                endTime: a.endTime,
-                                purpose: a.purpose,
-                                createdAt: a.createdAt
-                            },
-                            booking2: {
-                                id: b._id,
-                                user: b.user,
-                                startTime: b.startTime,
-                                endTime: b.endTime,
-                                purpose: b.purpose,
-                                createdAt: b.createdAt
-                            },
-                            lab: a.lab,
-                            workstation: a.workstation,
-                            date: a.date
-                        });
-                    }
+                    if (!timesOverlap(a.startTime, a.endTime, b.startTime, b.endTime)) continue;
+
+                    conflicts.push({
+                        id: `ws-conflict-${String(a._id)}-${String(b._id)}`,
+                        type: 'double_booking',
+                        lab: a.lab?.name || 'N/A',
+                        labId: a.lab?._id,
+                        workstation: a.workstation?.workstationNumber || 'N/A',
+                        workstationId: a.workstation?.workstationId,
+                        date: sameDayKey(a.date),
+                        timeSlot1: `${a.startTime} - ${a.endTime}`,
+                        timeSlot2: `${b.startTime} - ${b.endTime}`,
+                        bookings: [
+                            { id: a._id, user: a.user, purpose: a.purpose, startTime: a.startTime, endTime: a.endTime, createdAt: a.createdAt },
+                            { id: b._id, user: b.user, purpose: b.purpose, startTime: b.startTime, endTime: b.endTime, createdAt: b.createdAt }
+                        ],
+                        status: 'pending',
+                        severity: 'high',
+                        detectedAt: new Date().toISOString()
+                    });
                 }
             }
         });
+
+        // 2. Student booking vs teacher reservation in same room/lab and time.
+        bookings.forEach(booking => {
+            const bookingRoom = findBookingRoomInfo(booking);
+
+            reservations.forEach(reservation => {
+                if (booking.lab?._id?.toString() !== reservation.lab?._id?.toString()) return;
+                if (sameDayKey(booking.date) !== sameDayKey(reservation.date)) return;
+                if (!timesOverlap(booking.startTime, booking.endTime, reservation.startTime, reservation.endTime)) return;
+
+                const reservationRoomId = reservation.roomId?.toString() || null;
+                const sameSpace = !reservationRoomId || reservationRoomId === bookingRoom.roomId;
+                if (!sameSpace) return;
+
+                const conflictId = `res-conflict-${String(booking._id)}-${String(reservation._id)}`;
+                if (conflicts.some(conflict => conflict.id === conflictId)) return;
+
+                conflicts.push({
+                    id: conflictId,
+                    type: 'reservation_conflict',
+                    lab: booking.lab?.name || 'N/A',
+                    labId: booking.lab?._id,
+                    workstation: booking.workstation?.workstationNumber || bookingRoom.roomName || 'Any',
+                    date: sameDayKey(booking.date),
+                    timeSlot1: `Booking: ${booking.startTime} - ${booking.endTime}`,
+                    timeSlot2: `Reservation: ${reservation.startTime} - ${reservation.endTime}`,
+                    bookings: [
+                        { id: booking._id, user: booking.user, purpose: booking.purpose || 'Workstation booking', startTime: booking.startTime, endTime: booking.endTime, createdAt: booking.createdAt }
+                    ],
+                    reservation: {
+                        id: reservation._id,
+                        courseName: reservation.courseName,
+                        courseCode: reservation.courseCode,
+                        teacher: reservation.teacher,
+                        startTime: reservation.startTime,
+                        endTime: reservation.endTime,
+                        roomId: reservation.roomId || null,
+                        roomName: reservation.roomName || null,
+                        status: reservation.status
+                    },
+                    status: 'pending',
+                    severity: reservation.status === 'approved' ? 'critical' : 'high',
+                    detectedAt: new Date().toISOString()
+                });
+            });
+        });
+
+        // 3. Teacher reservation vs teacher reservation.
+        for (let i = 0; i < reservations.length; i++) {
+            for (let j = i + 1; j < reservations.length; j++) {
+                const a = reservations[i];
+                const b = reservations[j];
+                if (!reservationsConflict(a, b)) continue;
+
+                conflicts.push({
+                    id: `lab-conflict-${String(a._id)}-${String(b._id)}`,
+                    type: 'lab_overbooked',
+                    lab: a.lab?.name || 'N/A',
+                    labId: a.lab?._id,
+                    workstation: a.roomName || b.roomName ? `${a.roomName || 'Entire Lab'} / ${b.roomName || 'Entire Lab'}` : 'Entire Lab',
+                    date: sameDayKey(a.date),
+                    timeSlot1: `${a.courseCode}: ${a.startTime} - ${a.endTime}`,
+                    timeSlot2: `${b.courseCode}: ${b.startTime} - ${b.endTime}`,
+                    bookings: [],
+                    reservation: {
+                        id: a._id,
+                        courseName: a.courseName,
+                        courseCode: a.courseCode,
+                        teacher: a.teacher,
+                        startTime: a.startTime,
+                        endTime: a.endTime,
+                        numberOfStudents: a.numberOfStudents,
+                        roomName: a.roomName || 'Entire Lab',
+                        status: a.status
+                    },
+                    reservation2: {
+                        id: b._id,
+                        courseName: b.courseName,
+                        courseCode: b.courseCode,
+                        teacher: b.teacher,
+                        startTime: b.startTime,
+                        endTime: b.endTime,
+                        numberOfStudents: b.numberOfStudents,
+                        roomName: b.roomName || 'Entire Lab',
+                        status: b.status
+                    },
+                    status: 'pending',
+                    severity: a.status === 'approved' || b.status === 'approved' ? 'critical' : 'high',
+                    detectedAt: new Date().toISOString()
+                });
+            }
+        }
 
         res.json({
             success: true,
@@ -403,16 +665,6 @@ exports.resolveConflict = async (req, res) => {
         booking.cancelledAt = new Date();
         booking.cancellationReason = 'Resolved by admin - conflict';
         await booking.save();
-
-        // Update workstation status
-        const lab = await Lab.findById(booking.lab);
-        if (lab) {
-            const workstation = lab.workstations.id(booking.workstation.workstationId);
-            if (workstation) {
-                workstation.status = 'available';
-                await lab.save();
-            }
-        }
 
         res.json({ success: true, message: 'Conflict resolved - booking cancelled', booking });
     } catch (error) {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import DashboardLayout from '../../components/layout/DashboardLayout';
 import api from '../../services/api';
 import { useNotifications } from '../../contexts/NotificationContext';
@@ -7,6 +7,7 @@ import './ReportFault.css';
 
 const ReportFault = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { addToast } = useNotifications();
   const [formData, setFormData] = useState({
     labId: '',
@@ -23,9 +24,16 @@ const ReportFault = () => {
   const [error, setError] = useState('');
   const [faultId, setFaultId] = useState('');
 
+  const isTechnician = location.pathname.includes('/technician/');
+
   useEffect(() => {
     fetchLabs();
   }, []);
+
+  // Allowed labs for student fault reporting - match partial names in lab names
+  const allowedLabs = ['IT Lab', 'CS Lab', 'Main Library', 'Veterinary'];
+
+  const filteredLabs = labs.filter(lab => allowedLabs.some(allowed => lab.name.includes(allowed)));
 
   const fetchLabs = async () => {
     try {
@@ -176,7 +184,7 @@ const ReportFault = () => {
                     onChange={handleChange}
                   >
                     <option value="">Choose a lab...</option>
-                    {labs.map(lab => (
+                    {filteredLabs.map(lab => (
                       <option key={lab._id} value={lab._id}>{lab.name} ({lab.code})</option>
                     ))}
                   </select>
@@ -276,54 +284,125 @@ const ReportFault = () => {
               <div className="form-group">
                 <label>Submit To *</label>
                 <div className="submit-to-selector">
-                  <label className={`submit-to-option ${formData.submittedTo === 'technician' ? 'selected' : ''}`}>
-                    <input
-                      type="radio"
-                      name="submittedTo"
-                      value="technician"
-                      checked={formData.submittedTo === 'technician'}
-                      onChange={handleChange}
-                    />
-                    <span className="submit-to-label technician">
-                      <span className="submit-to-icon">🔧</span>
-                      <span className="submit-to-text">
-                        <strong>Technician</strong>
-                        <small>For hardware/software repairs</small>
-                      </span>
-                    </span>
-                  </label>
-                  <label className={`submit-to-option ${formData.submittedTo === 'admin' ? 'selected' : ''}`}>
-                    <input
-                      type="radio"
-                      name="submittedTo"
-                      value="admin"
-                      checked={formData.submittedTo === 'admin'}
-                      onChange={handleChange}
-                    />
-                    <span className="submit-to-label admin">
-                      <span className="submit-to-icon">👤</span>
-                      <span className="submit-to-text">
-                        <strong>Admin</strong>
-                        <small>For management issues</small>
-                      </span>
-                    </span>
-                  </label>
-                  <label className={`submit-to-option ${formData.submittedTo === 'superadmin' ? 'selected' : ''}`}>
-                    <input
-                      type="radio"
-                      name="submittedTo"
-                      value="superadmin"
-                      checked={formData.submittedTo === 'superadmin'}
-                      onChange={handleChange}
-                    />
-                    <span className="submit-to-label superadmin">
-                      <span className="submit-to-icon">🛡️</span>
-                      <span className="submit-to-text">
-                        <strong>Super Admin</strong>
-                        <small>For critical system issues</small>
-                      </span>
-                    </span>
-                  </label>
+                  {isTechnician ? (
+                    <>
+                      <label className={`submit-to-option ${formData.submittedTo === 'admin' ? 'selected' : ''}`}>
+                        <input
+                          type="radio"
+                          name="submittedTo"
+                          value="admin"
+                          checked={formData.submittedTo === 'admin'}
+                          onChange={handleChange}
+                        />
+                        <span className="submit-to-label admin">
+                          <span className="submit-to-icon">👤</span>
+                          <span className="submit-to-text">
+                            <strong>Admin</strong>
+                            <small>For management issues</small>
+                          </span>
+                        </span>
+                      </label>
+                      <label className={`submit-to-option ${formData.submittedTo === 'superadmin' ? 'selected' : ''}`}>
+                        <input
+                          type="radio"
+                          name="submittedTo"
+                          value="superadmin"
+                          checked={formData.submittedTo === 'superadmin'}
+                          onChange={handleChange}
+                        />
+                        <span className="submit-to-label superadmin">
+                          <span className="submit-to-icon">🛡️</span>
+                          <span className="submit-to-text">
+                            <strong>Super Admin</strong>
+                            <small>For critical system issues</small>
+                          </span>
+                        </span>
+                      </label>
+                      <label className={`submit-to-option ${formData.submittedTo === 'teacher' ? 'selected' : ''}`}>
+                        <input
+                          type="radio"
+                          name="submittedTo"
+                          value="teacher"
+                          checked={formData.submittedTo === 'teacher'}
+                          onChange={handleChange}
+                        />
+                        <span className="submit-to-label teacher">
+                          <span className="submit-to-icon">👨‍🏫</span>
+                          <span className="submit-to-text">
+                            <strong>Teacher</strong>
+                            <small>For lab/class related issues</small>
+                          </span>
+                        </span>
+                      </label>
+                      <label className={`submit-to-option ${formData.submittedTo === 'student' ? 'selected' : ''}`}>
+                        <input
+                          type="radio"
+                          name="submittedTo"
+                          value="student"
+                          checked={formData.submittedTo === 'student'}
+                          onChange={handleChange}
+                        />
+                        <span className="submit-to-label student">
+                          <span className="submit-to-icon">🎓</span>
+                          <span className="submit-to-text">
+                            <strong>Student</strong>
+                            <small>For general lab issues</small>
+                          </span>
+                        </span>
+                      </label>
+                    </>
+                  ) : (
+                    <>
+                      <label className={`submit-to-option ${formData.submittedTo === 'technician' ? 'selected' : ''}`}>
+                        <input
+                          type="radio"
+                          name="submittedTo"
+                          value="technician"
+                          checked={formData.submittedTo === 'technician'}
+                          onChange={handleChange}
+                        />
+                        <span className="submit-to-label technician">
+                          <span className="submit-to-icon">🔧</span>
+                          <span className="submit-to-text">
+                            <strong>Technician</strong>
+                            <small>For hardware/software repairs</small>
+                          </span>
+                        </span>
+                      </label>
+                      <label className={`submit-to-option ${formData.submittedTo === 'admin' ? 'selected' : ''}`}>
+                        <input
+                          type="radio"
+                          name="submittedTo"
+                          value="admin"
+                          checked={formData.submittedTo === 'admin'}
+                          onChange={handleChange}
+                        />
+                        <span className="submit-to-label admin">
+                          <span className="submit-to-icon">👤</span>
+                          <span className="submit-to-text">
+                            <strong>Admin</strong>
+                            <small>For management issues</small>
+                          </span>
+                        </span>
+                      </label>
+                      <label className={`submit-to-option ${formData.submittedTo === 'superadmin' ? 'selected' : ''}`}>
+                        <input
+                          type="radio"
+                          name="submittedTo"
+                          value="superadmin"
+                          checked={formData.submittedTo === 'superadmin'}
+                          onChange={handleChange}
+                        />
+                        <span className="submit-to-label superadmin">
+                          <span className="submit-to-icon">🛡️</span>
+                          <span className="submit-to-text">
+                            <strong>Super Admin</strong>
+                            <small>For critical system issues</small>
+                          </span>
+                        </span>
+                      </label>
+                    </>
+                  )}
                 </div>
               </div>
             </div>

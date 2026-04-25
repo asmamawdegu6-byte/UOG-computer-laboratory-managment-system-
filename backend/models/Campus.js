@@ -37,6 +37,15 @@ const campusSchema = new mongoose.Schema({
     description: {
         type: String,
         trim: true
+    },
+    // Admin assigned to this campus
+    admin: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
+    adminName: {
+        type: String,
+        trim: true
     }
 }, {
     timestamps: true

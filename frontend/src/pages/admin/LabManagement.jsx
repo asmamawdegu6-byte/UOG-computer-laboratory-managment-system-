@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../components/layout/DashboardLayout';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
@@ -17,6 +18,7 @@ const LabManagement = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [message, setMessage] = useState({ type: '', text: '' });
     const [submitting, setSubmitting] = useState(false);
+    const navigate = useNavigate();
     const [formData, setFormData] = useState({
         name: '',
         code: '',
@@ -48,7 +50,17 @@ const LabManagement = () => {
     const fetchLabs = useCallback(async () => {
         try {
             setLoading(true);
-            const data = await labService.getAllLabs({ all: true });
+            // Get logged in user's campus for filtering
+            const userStr = localStorage.getItem('user');
+            let campusFilter = {};
+            if (userStr) {
+                const user = JSON.parse(userStr);
+                if (user.campus) {
+                    campusFilter = { campus: user.campus };
+                }
+            }
+            // Superadmin sees all campuses, others see only their campus
+            const data = await labService.getAllLabs({ all: true, ...campusFilter });
             setLabs(data.labs || []);
         } catch (error) {
             console.error('Error fetching labs:', error);
@@ -91,20 +103,94 @@ const LabManagement = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        
+        const name = formData.name.trim();
+        const code = formData.code.trim();
+        const campus = formData.campus.trim();
+        const building = formData.building.trim();
+        const floor = formData.floor.trim();
+        const roomNumber = formData.roomNumber.trim();
+        const capacity = formData.capacity.trim();
+        const description = formData.description.trim();
+        
+        if (!name) {
+            showMessage('error', 'Lab name is required');
+            return;
+        }
+        if (!/^[a-zA-Z\s\-']+$/.test(name)) {
+            showMessage('error', 'Lab name must contain only letters, spaces, hyphens, and apostrophes');
+            return;
+        }
+        
+        if (!code) {
+            showMessage('error', 'Lab code is required');
+            return;
+        }
+        if (!/^[A-Za-z]{3}\d{3}$/.test(code)) {
+            showMessage('error', 'Lab code must be 3 letters followed by 3 numbers (e.g., LAB101)');
+            return;
+        }
+        
+        if (!campus) {
+            showMessage('error', 'Campus is required');
+            return;
+        }
+        
+        if (!building) {
+            showMessage('error', 'Building is required');
+            return;
+        }
+        if (!/^[a-zA-Z\s\-']+$/.test(building)) {
+            showMessage('error', 'Building must contain only letters, spaces, hyphens, and apostrophes');
+            return;
+        }
+        
+        if (!floor) {
+            showMessage('error', 'Floor is required');
+            return;
+        }
+        if (!/^\d+$/.test(floor)) {
+            showMessage('error', 'Floor must be a number');
+            return;
+        }
+        
+        if (!roomNumber) {
+            showMessage('error', 'Room number is required');
+            return;
+        }
+        if (!/^\d+$/.test(roomNumber)) {
+            showMessage('error', 'Room number must be a number');
+            return;
+        }
+        
+        if (!capacity) {
+            showMessage('error', 'Capacity is required');
+            return;
+        }
+        if (!/^\d+$/.test(capacity)) {
+            showMessage('error', 'Capacity must be a number');
+            return;
+        }
+        
+        if (description && !/^[a-zA-Z\s\-'.0-9]+$/.test(description)) {
+            showMessage('error', 'Description must contain only letters, numbers, spaces, hyphens, and apostrophes');
+            return;
+        }
+        
         setSubmitting(true);
         try {
             const labData = {
-                name: formData.name,
-                code: formData.code,
-                campus: formData.campus,
+                name,
+                code: code.toUpperCase(),
+                campus,
                 location: {
-                    building: formData.building,
-                    floor: formData.floor,
-                    roomNumber: formData.roomNumber
+                    building,
+                    floor,
+                    roomNumber
                 },
-                capacity: parseInt(formData.capacity),
+                capacity: parseInt(capacity, 10),
                 facilities: formData.facilities,
-                description: formData.description,
+                description,
                 openingHours: formData.openingHours
             };
 
@@ -189,21 +275,38 @@ const LabManagement = () => {
         setShowModal(true);
     };
 
-    const handleDelete = async (labId) => {
-        if (!window.confirm('Are you sure you want to delete this lab?')) return;
-        try {
-            const result = await labService.deleteLab(labId);
-            if (result.success) {
-                showMessage('success', result.message || 'Lab deleted successfully');
-                fetchLabs();
-            } else {
-                showMessage('error', result.message || 'Failed to delete lab');
-            }
-        } catch (error) {
-            console.error('Error deleting lab:', error);
-            showMessage('error', 'Failed to delete lab');
-        }
-    };
+     const handleDelete = async (labId) => {
+         if (!window.confirm('Are you sure you want to delete this lab?')) return;
+         try {
+             const result = await labService.deleteLab(labId);
+             if (result.success) {
+                 showMessage('success', result.message || 'Lab deleted successfully');
+                 fetchLabs();
+             } else {
+                 showMessage('error', result.message || 'Failed to delete lab');
+             }
+         } catch (error) {
+             console.error('Error deleting lab:', error);
+             showMessage('error', 'Failed to delete lab');
+         }
+     };
+
+     const handleDeleteRoom = async (labId, roomId) => {
+         if (!window.confirm('Are you sure you want to delete this room? All its workstations will be removed.')) return;
+         try {
+             const result = await labService.deleteRoom(labId, roomId);
+             if (result.success) {
+                 showMessage('success', result.message || 'Room deleted successfully');
+                 setViewingLab(result.lab);
+                 fetchLabs();
+             } else {
+                 showMessage('error', result.message || 'Failed to delete room');
+             }
+         } catch (error) {
+             console.error('Error deleting room:', error);
+             showMessage('error', 'Failed to delete room');
+         }
+     };
 
     const handleToggleStatus = async (lab) => {
         try {
@@ -276,6 +379,7 @@ const LabManagement = () => {
             render: (_, row) => (
                 <div className="action-buttons">
                     <Button variant="secondary" size="small" onClick={() => setViewingLab(row)}>View</Button>
+                    <Button variant="secondary" size="small" onClick={() => navigate(`/admin/computer-status?lab=${row._id}`)}>Monitor</Button>
                     <Button variant="secondary" size="small" onClick={() => handleEdit(row)}>Edit</Button>
                     <Button variant="danger" size="small" onClick={() => handleDelete(row._id)}>Delete</Button>
                 </div>
@@ -333,7 +437,7 @@ const LabManagement = () => {
                             </div>
                             <div className="form-group">
                                 <label htmlFor="code">Lab Code *</label>
-                                <input type="text" id="code" name="code" value={formData.code} onChange={handleInputChange} required placeholder="e.g., LAB-A101" />
+                                <input type="text" id="code" name="code" value={formData.code} onChange={handleInputChange} required placeholder="e.g., LAB101 (3 letters + 3 numbers)" />
                             </div>
                         </div>
 
@@ -350,15 +454,15 @@ const LabManagement = () => {
                         <div className="form-row">
                             <div className="form-group">
                                 <label htmlFor="building">Building *</label>
-                                <input type="text" id="building" name="building" value={formData.building} onChange={handleInputChange} required />
+                                <input type="text" id="building" name="building" value={formData.building} onChange={handleInputChange} required placeholder="e.g., Science Building" />
                             </div>
                             <div className="form-group">
                                 <label htmlFor="floor">Floor *</label>
-                                <input type="text" id="floor" name="floor" value={formData.floor} onChange={handleInputChange} required />
+                                <input type="number" id="floor" name="floor" value={formData.floor} onChange={handleInputChange} required min="1" placeholder="e.g., 1" />
                             </div>
                             <div className="form-group">
                                 <label htmlFor="roomNumber">Room Number *</label>
-                                <input type="text" id="roomNumber" name="roomNumber" value={formData.roomNumber} onChange={handleInputChange} required />
+                                <input type="number" id="roomNumber" name="roomNumber" value={formData.roomNumber} onChange={handleInputChange} required min="1" placeholder="e.g., 101" />
                             </div>
                         </div>
 
@@ -438,6 +542,30 @@ const LabManagement = () => {
                                     ))}
                                 </div>
                             </div>
+
+                            <div className="lab-rooms-section" style={{ marginTop: '2rem' }}>
+                                <h4>Rooms ({viewingLab.rooms?.length || 0})</h4>
+                                <div className="rooms-list">
+                                    {viewingLab.rooms?.map(room => (
+                                        <div key={room._id} className="room-item">
+                                            <div className="room-info">
+                                                <strong>{room.name}</strong>
+                                                <span className="room-type-badge">{room.type}</span>
+                                                <span className="room-capacity">Capacity: {room.capacity}</span>
+                                                <span className="workstation-count">{room.workstations?.length || 0} computers</span>
+                                            </div>
+                                            <Button
+                                                variant="danger"
+                                                size="small"
+                                                onClick={() => handleDeleteRoom(viewingLab._id, room._id)}
+                                            >
+                                                Delete Room
+                                            </Button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
                             <div className="form-actions" style={{ marginTop: '2rem' }}>
                                 <Button variant="primary" onClick={() => { setEditingLab(viewingLab); handleEdit(viewingLab); setViewingLab(null); }}>Edit Lab</Button>
                                 <Button variant="secondary" onClick={() => setViewingLab(null)}>Close</Button>

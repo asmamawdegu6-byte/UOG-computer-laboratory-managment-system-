@@ -10,7 +10,8 @@ import { userService } from '../../services/userService';
 import './UserRoleManagement.css';
 
 const emptyAdminForm = {
-    name: '',
+    firstName: '',
+    lastName: '',
     email: '',
     username: '',
     password: '',
@@ -26,9 +27,6 @@ const UserRoleManagement = () => {
     const [loadingUsers, setLoadingUsers] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [allUsers, setAllUsers] = useState([]);
-    const [resetPasswordUser, setResetPasswordUser] = useState(null);
-    const [newPassword, setNewPassword] = useState('');
-    const [confirmPassword, setConfirmPassword] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [showAddAdminModal, setShowAddAdminModal] = useState(false);
     const [adminForm, setAdminForm] = useState(emptyAdminForm);
@@ -44,7 +42,7 @@ const UserRoleManagement = () => {
             const data = await superadminService.getRoleDistribution();
             setDistribution(data.distribution || []);
 
-            const usersData = await userService.getUsers({ limit: 200 });
+            const usersData = await userService.getUsers({ limit: 1000 });
             setAllUsers(usersData.users || []);
         } catch (error) {
             showMessage('error', 'Failed to load role data');
@@ -83,40 +81,6 @@ const UserRoleManagement = () => {
         }
     };
 
-    const openResetPasswordModal = (user) => {
-        setResetPasswordUser(user);
-        setNewPassword('');
-        setConfirmPassword('');
-    };
-
-    const handleResetPassword = async (e) => {
-        e.preventDefault();
-        if (newPassword.length < 6) {
-            showMessage('error', 'Password must be at least 6 characters');
-            return;
-        }
-        if (newPassword !== confirmPassword) {
-            showMessage('error', 'Passwords do not match');
-            return;
-        }
-        setSubmitting(true);
-        try {
-            const result = await userService.resetUserPassword(resetPasswordUser._id, newPassword);
-            if (result.success) {
-                showMessage('success', result.message || 'Password reset successfully');
-                setResetPasswordUser(null);
-                setNewPassword('');
-                setConfirmPassword('');
-            } else {
-                showMessage('error', result.message || 'Failed to reset password');
-            }
-        } catch (error) {
-            showMessage('error', error?.response?.data?.message || 'Failed to reset password');
-        } finally {
-            setSubmitting(false);
-        }
-    };
-
     const openAddAdminModal = () => {
         setAdminForm(emptyAdminForm);
         setShowAddAdminModal(true);
@@ -129,19 +93,89 @@ const UserRoleManagement = () => {
 
     const handleCreateAdmin = async (e) => {
         e.preventDefault();
-        if (adminForm.password.length < 6) {
+        
+        const firstName = adminForm.firstName.trim();
+        const lastName = adminForm.lastName.trim();
+        const email = adminForm.email.trim();
+        const username = adminForm.username.trim();
+        const password = adminForm.password;
+        const campus = adminForm.campus.trim();
+        
+        if (!firstName) {
+            showMessage('error', 'First name is required');
+            return;
+        }
+        if (!/^[a-zA-Z\s]+$/.test(firstName)) {
+            showMessage('error', 'First name must contain only letters');
+            return;
+        }
+        
+        if (!lastName) {
+            showMessage('error', 'Last name is required');
+            return;
+        }
+        if (!/^[a-zA-Z\s]+$/.test(lastName)) {
+            showMessage('error', 'Last name must contain only letters');
+            return;
+        }
+        
+        if (!username) {
+            showMessage('error', 'Username is required');
+            return;
+        }
+        if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+            showMessage('error', 'Username must contain only letters, numbers, and underscores');
+            return;
+        }
+        
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!email) {
+            showMessage('error', 'Email is required');
+            return;
+        }
+        if (!emailRegex.test(email)) {
+            showMessage('error', 'Please enter a valid email address');
+            return;
+        }
+        
+        if (password.length < 6) {
             showMessage('error', 'Password must be at least 6 characters');
             return;
         }
+        if (!/[a-zA-Z]/.test(password)) {
+            showMessage('error', 'Password must contain at least one letter');
+            return;
+        }
+        if (!/[0-9]/.test(password)) {
+            showMessage('error', 'Password must contain at least one number');
+            return;
+        }
+        if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+            showMessage('error', 'Password must contain at least one special character');
+            return;
+        }
+        
+        if (!campus) {
+            showMessage('error', 'Campus is required');
+            return;
+        }
+        
         setSubmitting(true);
         try {
+            const fullName = `${firstName} ${lastName}`;
             const userData = {
-                ...adminForm,
+                name: fullName,
+                firstName,
+                lastName,
+                email,
+                username,
+                password,
+                campus,
                 role: 'admin'
             };
             const result = await userService.createUser(userData);
             if (result.success) {
-                showMessage('success', `Admin "${result.user?.name}" created successfully`);
+                showMessage('success', `Admin "${fullName}" created successfully`);
                 setShowAddAdminModal(false);
                 setAdminForm(emptyAdminForm);
                 fetchData();
@@ -216,11 +250,7 @@ const UserRoleManagement = () => {
         {
             accessor: 'actions', header: 'Actions', render: (_, row) => {
                 if (row.role === 'superadmin') return null;
-                return (
-                    <div className="action-buttons">
-                        <Button variant="warning" size="small" onClick={() => openResetPasswordModal(row)}>Reset Password</Button>
-                    </div>
-                );
+                return null;
             }
         }
     ];
@@ -293,11 +323,7 @@ const UserRoleManagement = () => {
                                     {
                                         accessor: 'actions', header: 'Actions', render: (_, row) => {
                                             if (row.role === 'superadmin') return null;
-                                            return (
-                                                <div className="action-buttons">
-                                                    <Button variant="warning" size="small" onClick={() => openResetPasswordModal(row)}>Reset Password</Button>
-                                                </div>
-                                            );
+                                            return null;
                                         }
                                     }
                                 ]}
@@ -327,47 +353,6 @@ const UserRoleManagement = () => {
                 </Card>
 
                 <Modal
-                    isOpen={resetPasswordUser !== null}
-                    onClose={() => { setResetPasswordUser(null); setNewPassword(''); setConfirmPassword(''); }}
-                    title={`Reset Password - ${resetPasswordUser?.name || ''}`}
-                    size="small"
-                >
-                    {resetPasswordUser && (
-                        <form className="user-form" onSubmit={handleResetPassword}>
-                            <p style={{ marginBottom: '1rem', color: '#666' }}>
-                                Reset password for user: <strong>{resetPasswordUser.username}</strong>
-                            </p>
-                            <div className="form-group">
-                                <label>New Password *</label>
-                                <input
-                                    type="password"
-                                    value={newPassword}
-                                    onChange={(e) => setNewPassword(e.target.value)}
-                                    required
-                                    minLength={6}
-                                    placeholder="Enter new password (min 6 characters)"
-                                />
-                            </div>
-                            <div className="form-group">
-                                <label>Confirm Password *</label>
-                                <input
-                                    type="password"
-                                    value={confirmPassword}
-                                    onChange={(e) => setConfirmPassword(e.target.value)}
-                                    required
-                                    minLength={6}
-                                    placeholder="Confirm new password"
-                                />
-                            </div>
-                            <div className="form-actions">
-                                <Button variant="secondary" type="button" onClick={() => { setResetPasswordUser(null); setNewPassword(''); setConfirmPassword(''); }}>Cancel</Button>
-                                <Button variant="primary" type="submit" loading={submitting}>Reset Password</Button>
-                            </div>
-                        </form>
-                    )}
-                </Modal>
-
-                <Modal
                     isOpen={showAddAdminModal}
                     onClose={() => { setShowAddAdminModal(false); setAdminForm(emptyAdminForm); }}
                     title="Add New Admin"
@@ -379,15 +364,27 @@ const UserRoleManagement = () => {
                         </p>
                         <div className="form-row">
                             <div className="form-group">
-                                <label>Full Name *</label>
+                                <label>First Name *</label>
                                 <input
-                                    name="name"
-                                    value={adminForm.name}
+                                    name="firstName"
+                                    value={adminForm.firstName}
                                     onChange={handleAdminFormChange}
                                     required
-                                    placeholder="Enter admin full name"
+                                    placeholder="Enter first name (letters only)"
                                 />
                             </div>
+                            <div className="form-group">
+                                <label>Last Name *</label>
+                                <input
+                                    name="lastName"
+                                    value={adminForm.lastName}
+                                    onChange={handleAdminFormChange}
+                                    required
+                                    placeholder="Enter last name (letters only)"
+                                />
+                            </div>
+                        </div>
+                        <div className="form-row">
                             <div className="form-group">
                                 <label>Username *</label>
                                 <input
@@ -396,11 +393,9 @@ const UserRoleManagement = () => {
                                     onChange={handleAdminFormChange}
                                     required
                                     minLength={3}
-                                    placeholder="Enter username (min 3 characters)"
+                                    placeholder="Enter username (letters, numbers, _)"
                                 />
                             </div>
-                        </div>
-                        <div className="form-row">
                             <div className="form-group">
                                 <label>Email *</label>
                                 <input
@@ -412,18 +407,18 @@ const UserRoleManagement = () => {
                                     placeholder="admin@uog.edu.et"
                                 />
                             </div>
-                            <div className="form-group">
-                                <label>Password *</label>
-                                <input
-                                    name="password"
-                                    type="password"
-                                    value={adminForm.password}
-                                    onChange={handleAdminFormChange}
-                                    required
-                                    minLength={6}
-                                    placeholder="Enter password (min 6 characters)"
-                                />
-                            </div>
+                        </div>
+                        <div className="form-group">
+                            <label>Password *</label>
+                            <input
+                                name="password"
+                                type="password"
+                                value={adminForm.password}
+                                onChange={handleAdminFormChange}
+                                required
+                                minLength={6}
+                                placeholder="Min 6 chars with letter, number, special char"
+                            />
                         </div>
                         <div className="form-group">
                             <label>Campus *</label>

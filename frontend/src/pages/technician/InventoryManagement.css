@@ -53,6 +53,10 @@
     margin-bottom: 1rem;
 }
 
+.form-row-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .form-group {
     margin-bottom: 1rem;
 }
@@ -94,4 +98,122 @@
     text-align: center;
     padding: 2rem;
     color: #64748b;
+}
+
+.spreadsheet-card {
+    overflow: hidden;
+}
+
+.sheet-toolbar {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.sheet-toolbar h3 {
+    margin: 0 0 0.2rem;
+    color: #0f172a;
+}
+
+.sheet-toolbar p {
+    margin: 0;
+    color: #64748b;
+    font-size: 0.875rem;
+}
+
+.sheet-search {
+    width: min(360px, 100%);
+    padding: 0.7rem 0.9rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.65rem;
+}
+
+.sheet-table-wrap {
+    overflow: auto;
+    border: 1px solid #dbe2ea;
+}
+
+.sheet-table {
+    width: 100%;
+    min-width: 1180px;
+    border-collapse: collapse;
+    background: #ffffff;
+}
+
+.sheet-table th,
+.sheet-table td {
+    border: 1px solid #dbe2ea;
+    padding: 0.7rem 0.75rem;
+    text-align: left;
+    vertical-align: top;
+    font-size: 0.88rem;
+}
+
+.sheet-table th {
+    background: #eef3f8;
+    color: #0f172a;
+    font-weight: 700;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.sheet-table tbody tr:nth-child(even) {
+    background: #fbfdff;
+}
+
+.sheet-status {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.28rem 0.65rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.sheet-status.operational {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.sheet-status.maintenance {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.sheet-status.broken {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.sheet-status.retired,
+.sheet-status.disposed {
+    background: #e5e7eb;
+    color: #374151;
+}
+
+.sheet-delete-btn {
+    border: none;
+    background: #fee2e2;
+    color: #991b1b;
+    padding: 0.45rem 0.75rem;
+    border-radius: 0.55rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+@media (max-width: 900px) {
+    .page-header,
+    .sheet-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .form-row,
+    .form-row-3 {
+        grid-template-columns: 1fr;
+    }
 }

@@ -1,19 +1,270 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../components/layout/DashboardLayout';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import { reportService } from '../../services/reportService';
+import api from '../../services/api';
 import Card from '../../components/ui/Card';
 import './AdminDashboard.css';
+
+const CAMPUS_STYLES = {
+    MAR: {
+        primary: '#e91e63',
+        secondary: '#fce4ec',
+        accent: '#c2185b',
+        gradient: 'linear-gradient(135deg, #e91e63 0%, #f48fb1 100%)',
+        bgGradient: 'linear-gradient(135deg, #fce4ec 0%, #f8bbd0 100%)'
+    },
+    ATF: {
+        primary: '#00bcd4',
+        secondary: '#e0f7fa',
+        accent: '#0097a7',
+        gradient: 'linear-gradient(135deg, #00bcd4 0%, #80deea 100%)',
+        bgGradient: 'linear-gradient(135deg, #e0f7fa 0%, #b2ebf2 100%)'
+    },
+    HSC: {
+        primary: '#4caf50',
+        secondary: '#e8f5e9',
+        accent: '#388e3c',
+        gradient: 'linear-gradient(135deg, #4caf50 0%, #a5d6a7 100%)',
+        bgGradient: 'linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%)'
+    },
+    ATW: {
+        primary: '#3949ab',
+        secondary: '#e8eaf6',
+        accent: '#1a237e',
+        gradient: 'linear-gradient(135deg, #3949ab 0%, #5c6bc0 100%)',
+        bgGradient: 'linear-gradient(135deg, #e8eaf6 0%, #c5cae9 100%)'
+    }
+};
+
+const CAMPUS_NAME_TO_CODE = {
+    'Maraki': 'MAR',
+    'Atse Tewodros': 'ATW',
+    'Atse Fasil': 'ATF',
+    'Health Science College (GC)': 'HSC',
+    'Health Science College': 'HSC'
+};
+
+const getCampusCode = () => {
+    try {
+        const stored = localStorage.getItem('selectedCampus');
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            return parsed.code;
+        }
+        const userStr = localStorage.getItem('user');
+        if (userStr) {
+            const user = JSON.parse(userStr);
+            if (user.campusCode) {
+                return user.campusCode;
+            }
+            if (user.campus) {
+                return CAMPUS_NAME_TO_CODE[user.campus] || user.campus;
+            }
+        }
+    } catch (e) {
+        console.error('Error getting campus code:', e);
+    }
+    return 'ATW';
+};
 
 const AdminDashboard = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [dashboardData, setDashboardData] = useState(null);
+    const [labs, setLabs] = useState([]);
+    const [reservations, setReservations] = useState([]);
+    const [conflicts, setConflicts] = useState([]);
+    const campusCode = getCampusCode();
+    const campusStyle = CAMPUS_STYLES[campusCode] || CAMPUS_STYLES.ATW;
+    const navigate = useNavigate();
 
     useEffect(() => {
         fetchDashboardData();
+        fetchLabsForOverview();
+        fetchReservationsForOverview();
+        fetchConflictsForDashboard();
     }, []);
+
+    // Detect conflicts for the dashboard
+    const fetchConflictsForDashboard = async () => {
+        try {
+            const [bookingsRes, reservationsRes] = await Promise.all([
+                api.get('/bookings', { params: { limit: 1000 } }),
+                api.get('/reservations', { params: { limit: 1000 } })
+            ]);
+            const bookingsList = bookingsRes.data.bookings || [];
+            const reservationsList = reservationsRes.data.reservations || [];
+            
+            // Detect conflicts using the same logic as ConflictDetection page
+            const conflicts = detectConflicts(bookingsList, reservationsList);
+            setConflicts(conflicts);
+        } catch (err) {
+            console.error('Error fetching conflicts:', err);
+        }
+    };
+
+    // Conflict detection algorithm
+    const detectConflicts = (bookingsList, reservationsList) => {
+        const conflictsList = [];
+        
+        // 1. Workstation Double Booking Detection
+        const wsGrouped = {};
+        bookingsList.forEach(booking => {
+            if (['cancelled', 'completed', 'no-show'].includes(booking.status)) return;
+            const wsId = booking.workstation?.workstationId || 'unknown';
+            const labId = booking.lab?._id || 'unknown';
+            const dateKey = new Date(booking.date).toISOString().split('T')[0];
+            const key = `${labId}-${wsId}-${dateKey}`;
+            if (!wsGrouped[key]) wsGrouped[key] = [];
+            wsGrouped[key].push(booking);
+        });
+
+        Object.entries(wsGrouped).forEach(([key, groupBookings]) => {
+            if (groupBookings.length < 2) return;
+            for (let i = 0; i < groupBookings.length; i++) {
+                for (let j = i + 1; j < groupBookings.length; j++) {
+                    const a = groupBookings[i];
+                    const b = groupBookings[j];
+                    if (a.startTime < b.endTime && b.startTime < a.endTime) {
+                        conflictsList.push({
+                            id: `ws-${a._id}-${b._id}`,
+                            type: 'Double Booking',
+                            lab: a.lab?.name || 'N/A',
+                            workstation: a.workstation?.workstationNumber || 'N/A',
+                            date: new Date(a.date).toISOString().split('T')[0],
+                            time: `${a.startTime} - ${a.endTime} overlaps ${b.startTime} - ${b.endTime}`,
+                            severity: 'high'
+                        });
+                    }
+                }
+            }
+        });
+
+        // 2. Reservation vs Booking Conflict
+        const approvedReservations = reservationsList.filter(r => r.status === 'approved');
+        bookingsList.forEach(booking => {
+            if (['cancelled', 'completed', 'no-show'].includes(booking.status)) return;
+            const bookingDate = new Date(booking.date).toISOString().split('T')[0];
+            const bookingLabId = booking.lab?._id?.toString();
+
+            approvedReservations.forEach(reservation => {
+                const reservationDate = new Date(reservation.date).toISOString().split('T')[0];
+                const reservationLabId = reservation.lab?._id?.toString();
+
+                if (bookingLabId === reservationLabId && bookingDate === reservationDate) {
+                    if (booking.startTime < reservation.endTime && reservation.startTime < booking.endTime) {
+                        const conflictId = `res-${booking._id}-${reservation._id}`;
+                        if (!conflictsList.find(c => c.id === conflictId)) {
+                            conflictsList.push({
+                                id: conflictId,
+                                type: 'Booking vs Reservation',
+                                lab: booking.lab?.name || 'N/A',
+                                workstation: booking.workstation?.workstationNumber || 'Any',
+                                date: bookingDate,
+                                time: `Booking ${booking.startTime}-${booking.endTime} vs Reservation ${reservation.startTime}-${reservation.endTime}`,
+                                severity: 'critical'
+                            });
+                        }
+                    }
+                }
+            });
+        });
+
+        // 3. Lab Overbooking (two reservations at same time)
+        const resGrouped = {};
+        approvedReservations.forEach(res => {
+            const labId = res.lab?._id?.toString() || 'unknown';
+            const dateKey = new Date(res.date).toISOString().split('T')[0];
+            const key = `${labId}-${dateKey}`;
+            if (!resGrouped[key]) resGrouped[key] = [];
+            resGrouped[key].push(res);
+        });
+
+        Object.entries(resGrouped).forEach(([key, groupRes]) => {
+            if (groupRes.length < 2) return;
+            for (let i = 0; i < groupRes.length; i++) {
+                for (let j = i + 1; j < groupRes.length; j++) {
+                    const a = groupRes[i];
+                    const b = groupRes[j];
+                    if (a.startTime < b.endTime && b.startTime < a.endTime) {
+                        conflictsList.push({
+                            id: `lab-${a._id}-${b._id}`,
+                            type: 'Lab Overbooked',
+                            lab: a.lab?.name || 'N/A',
+                            workstation: 'Entire Lab',
+                            date: new Date(a.date).toISOString().split('T')[0],
+                            time: `${a.courseCode}: ${a.startTime}-${a.endTime} overlaps ${b.courseCode}: ${b.startTime}-${b.endTime}`,
+                            severity: 'critical'
+                        });
+                    }
+                }
+            }
+        });
+
+        return conflictsList;
+    };
+
+    // Fetch labs for availability overview - admin sees only their campus
+    const fetchLabsForOverview = async () => {
+        try {
+            // Get admin's campus from user profile (more reliable than selectedCampus)
+            const userStr = localStorage.getItem('user');
+            let campusName = 'Atse Tewodros'; // default fallback
+
+            if (userStr) {
+                const user = JSON.parse(userStr);
+                if (user.campus) {
+                    campusName = user.campus;
+                } else if (user.campusCode) {
+                    // Convert code to name if needed
+                    const codeToName = {
+                        'MAR': 'Maraki',
+                        'ATW': 'Atse Tewodros',
+                        'ATF': 'Atse Fasil',
+                        'HSC': 'Health Science College (GC)'
+                    };
+                    campusName = codeToName[user.campusCode] || 'Atse Tewodros';
+                }
+            }
+
+            const response = await fetch(`/api/labs?campus=${encodeURIComponent(campusName)}&all=true`);
+            const data = await response.json();
+            setLabs(data.labs || []);
+        } catch (err) {
+            console.error('Error fetching labs:', err);
+        }
+    };
+
+    // Fetch approved reservations for today
+    const fetchReservationsForOverview = async () => {
+        try {
+            const today = new Date();
+            const todayStr = today.toISOString().split('T')[0];
+            console.log('Fetching reservations for date:', todayStr);
+            
+            const response = await api.get('/reservations', {
+                params: {
+                    status: 'approved'
+                }
+            });
+            
+            console.log('All approved reservations:', response.data);
+            
+            // Filter to today's reservations on client side
+            const todayISO = todayStr;
+            const todayReservations = (response.data.reservations || []).filter(r => {
+                const resDate = new Date(r.date).toISOString().split('T')[0];
+                return resDate === todayISO;
+            });
+            
+            console.log("Today's reservations:", todayReservations.length);
+            setReservations(todayReservations);
+        } catch (err) {
+            console.error('Error fetching reservations:', err);
+        }
+    };
 
     const fetchDashboardData = async () => {
         try {
@@ -120,7 +371,7 @@ const AdminDashboard = () => {
                     <path d="M16 3.13a4 4 0 0 1 0 7.75" />
                 </svg>
             ),
-            color: '#3498db'
+            color: campusStyle.primary
         },
         {
             label: 'Lab Management',
@@ -131,7 +382,7 @@ const AdminDashboard = () => {
                     <polyline points="9 22 9 12 15 12 15 22" />
                 </svg>
             ),
-            color: '#2ecc71'
+            color: campusStyle.accent
         },
         {
             label: 'Booking Management',
@@ -204,6 +455,17 @@ const AdminDashboard = () => {
                 </svg>
             ),
             color: '#95a5a6'
+        },
+        {
+            label: 'Telegram Bot',
+            path: 'https://t.me/uog_computer_lab_bot',
+            external: true,
+            icon: (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+                </svg>
+            ),
+            color: '#0088cc'
         }
     ];
 
@@ -215,12 +477,15 @@ const AdminDashboard = () => {
         <DashboardLayout>
             <div className="admin-dashboard">
                 {/* Header Section */}
-                <div className="dashboard-header">
+                <div className="dashboard-header" style={{ '--campus-primary': campusStyle.primary, '--campus-secondary': campusStyle.secondary, '--campus-gradient': campusStyle.gradient }}>
                     <div className="header-content">
-                        <h1>Admin Dashboard</h1>
-                        <p className="welcome-text">System Overview & Management Control Center</p>
+                        <div className="campus-badge" style={{ background: campusStyle.bgGradient, color: campusStyle.accent }}>
+                            Campus: {campusCode}
+                        </div>
+                        <h1 style={{ color: campusStyle.primary }}>Admin Dashboard</h1>
+                        <p className="welcome-text" style={{ color: campusStyle.accent }}>System Overview & Management Control Center</p>
                     </div>
-                    <div className="header-date">
+                    <div className="header-date" style={{ background: campusStyle.gradient }}>
                         <span>{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
                     </div>
                 </div>
@@ -247,13 +512,46 @@ const AdminDashboard = () => {
                     ))}
                 </div>
 
+                {/* Conflict Summary */}
+                {conflicts.length > 0 && (
+                    <div className="dashboard-section" style={{ backgroundColor: '#fef2f2', borderRadius: '8px', padding: '1.5rem', marginBottom: '1.5rem', borderLeft: '4px solid #ef4444' }}>
+                        <div className="section-header">
+                            <h2 style={{ color: '#dc2626', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: '24px', height: '24px' }}>
+                                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                                    <line x1="12" y1="9" x2="12" y2="13" />
+                                    <line x1="12" y1="17" x2="12.01" y2="17" />
+                                </svg>
+                                Conflicts Detected: {conflicts.length}
+                            </h2>
+                            <Link to="/admin/conflicts" className="view-all-link">View All Conflicts →</Link>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1rem' }}>
+                            {conflicts.slice(0, 3).map((conflict, index) => (
+                                <div key={index} style={{ backgroundColor: '#fff', padding: '1rem', borderRadius: '6px', borderLeft: `4px solid ${conflict.severity === 'critical' ? '#dc2626' : '#f59e0b'}` }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                                        <span style={{ fontWeight: '600', color: '#1f2937' }}>{conflict.type}</span>
+                                        <span style={{ padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem', backgroundColor: conflict.severity === 'critical' ? '#fef2f2' : '#fef3c7', color: conflict.severity === 'critical' ? '#dc2626' : '#d97706' }}>
+                                            {conflict.severity}
+                                        </span>
+                                    </div>
+                                    <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+                                        <div>{conflict.lab}</div>
+                                        <div>{conflict.date} | {conflict.time}</div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 {/* Main Content Grid */}
                 <div className="dashboard-grid">
                     {/* Recent Bookings */}
                     <div className="dashboard-section activity-section">
                         <div className="section-header">
                             <h2>Recent Bookings</h2>
-                            <Link to="/admin/bookings" className="view-all-link">View All &rarr;</Link>
+                            <Link to="/admin/bookings" className="view-all-link">View All →</Link>
                         </div>
                         <div className="activity-table-wrapper">
                             {dashboardData?.recentActivity?.bookings?.length > 0 ? (
@@ -296,14 +594,14 @@ const AdminDashboard = () => {
                     <div className="dashboard-section notifications-section">
                         <div className="section-header">
                             <h2>Recent Faults</h2>
-                            <Link to="/admin/faults" className="view-all-link">View All &rarr;</Link>
+                            <Link to="/admin/faults" className="view-all-link">View All →</Link>
                         </div>
                         <div className="notifications-list">
                             {dashboardData?.recentActivity?.faults?.length > 0 ? (
                                 dashboardData.recentActivity.faults.map((fault) => (
                                     <div key={fault._id} className={`notification-item ${fault.status === 'open' ? 'notification-warning' : fault.status === 'resolved' ? 'notification-success' : 'notification-info'}`}>
                                         <div className="notification-icon">
-                                            {fault.status === 'open' ? '\u26A0' : fault.status === 'resolved' ? '\u2713' : '\u2139'}
+                                            {fault.status === 'open' ? '⚠' : fault.status === 'resolved' ? '✓' : 'ℹ'}
                                         </div>
                                         <div className="notification-content">
                                             <p><strong>{fault.title}</strong></p>
@@ -319,6 +617,49 @@ const AdminDashboard = () => {
                     </div>
                 </div>
 
+                {/* Today's Lab Reservations */}
+                <div className="dashboard-section activity-section">
+                    <div className="section-header">
+                        <h2>Today's Lab Reservations</h2>
+                        <Link to="/admin/reservations" className="view-all-link">View All →</Link>
+                    </div>
+                    <div className="activity-table-wrapper">
+                        {reservations.length > 0 ? (
+                            <table className="activity-table">
+                                <thead>
+                                    <tr>
+                                        <th>Course</th>
+                                        <th>Teacher</th>
+                                        <th>Lab</th>
+                                        <th>Room</th>
+                                        <th>Time</th>
+                                        <th>Students</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {reservations.slice(0, 5).map((reservation) => (
+                                        <tr key={reservation._id}>
+                                            <td>
+                                                <div className="activity-action">{reservation.courseName}</div>
+                                                <div style={{ fontSize: '0.75rem', color: '#666' }}>{reservation.courseCode}</div>
+                                            </td>
+                                            <td>{reservation.teacher?.name || 'N/A'}</td>
+                                            <td>{reservation.lab?.name || 'N/A'}</td>
+                                            <td>{reservation.roomName || 'N/A'}</td>
+                                            <td>
+                                                <div className="activity-time">{reservation.startTime} - {reservation.endTime}</div>
+                                            </td>
+                                            <td>{reservation.numberOfStudents}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        ) : (
+                            <p style={{ textAlign: 'center', padding: '2rem', color: '#666' }}>No lab reservations for today.</p>
+                        )}
+                    </div>
+                </div>
+
                 {/* Quick Actions */}
                 <div className="dashboard-section quick-actions-section">
                     <div className="section-header">
@@ -326,13 +667,75 @@ const AdminDashboard = () => {
                     </div>
                     <div className="quick-actions-grid">
                         {quickActions.map((action, index) => (
-                            <Link key={index} to={action.path} className="quick-action-card" style={{ '--action-color': action.color }}>
-                                <div className="quick-action-icon" style={{ color: action.color }}>
-                                    {action.icon}
-                                </div>
-                                <span className="quick-action-label">{action.label}</span>
-                            </Link>
+                            action.external ? (
+                                <button
+                                    key={index}
+                                    onClick={() => window.open(action.path, '_blank')}
+                                    className="quick-action-card"
+                                    style={{ '--action-color': action.color }}
+                                >
+                                    <div className="quick-action-icon" style={{ color: action.color }}>
+                                        {action.icon}
+                                    </div>
+                                    <span className="quick-action-label">{action.label}</span>
+                                </button>
+                            ) : (
+                                <Link key={index} to={action.path} className="quick-action-card" style={{ '--action-color': action.color }}>
+                                    <div className="quick-action-icon" style={{ color: action.color }}>
+                                        {action.icon}
+                                    </div>
+                                    <span className="quick-action-label">{action.label}</span>
+                                </Link>
+                            )
                         ))}
+                    </div>
+                </div>
+
+                {/* Lab Availability Overview */}
+                <div className="dashboard-section lab-availability-section">
+                    <div className="section-header">
+                        <h2>Lab Availability Overview</h2>
+                        <Link to="/admin/computer-status" className="view-all-link">View All →</Link>
+                    </div>
+                    <div className="lab-availability-grid">
+                        {labs.length > 0 ? (
+                            labs.slice(0, 6).map((lab) => {
+                                const totalWorkstations = lab.rooms?.reduce((sum, room) => sum + (room.workstations?.length || 0), 0) || 0;
+                                const availableWorkstations = lab.rooms?.reduce((sum, room) => {
+                                    return sum + (room.workstations?.filter(ws => ws.status === 'available').length || 0);
+                                }, 0) || 0;
+                                const percentage = totalWorkstations > 0 ? Math.round((availableWorkstations / totalWorkstations) * 100) : 0;
+
+                                return (
+                                    <div key={lab._id} className="lab-availability-card" style={{ borderLeftColor: campusStyle.primary }} onClick={() => navigate(`/admin/computer-status?lab=${lab._id}`)}>
+                                        <div className="lab-info">
+                                            <h4>{lab.name}</h4>
+                                            <p>{lab.rooms?.length || 0} rooms</p>
+                                        </div>
+                                        <div className="lab-progress">
+                                            <div className="progress-bar-wrapper">
+                                                <div
+                                                    className="progress-bar-fill"
+                                                    style={{
+                                                        width: `${percentage}%`,
+                                                        background: percentage > 50 ? '#10b981' : percentage > 25 ? '#f59e0b' : '#ef4444'
+                                                    }}
+                                                ></div>
+                                            </div>
+                                            <div className="lab-stats">
+                                                <span className="available-count">{availableWorkstations} available</span>
+                                                <span className="total-count">/ {totalWorkstations} total</span>
+                                            </div>
+                                        </div>
+                                        <div className="lab-action-hint">
+                                            <span>View computers →</span>
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        ) : (
+                            <p style={{ textAlign: 'center', padding: '2rem', color: '#666' }}>No labs available.</p>
+                        )}
                     </div>
                 </div>
             </div>

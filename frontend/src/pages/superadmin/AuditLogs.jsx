@@ -12,7 +12,7 @@ const AuditLogs = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [actions, setActions] = useState([]);
-    const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, pages: 0 });
+    const [pagination, setPagination] = useState({ page: 1, limit: 1000, total: 0, pages: 0 });
     const [filters, setFilters] = useState({
         search: '',
         action: '',

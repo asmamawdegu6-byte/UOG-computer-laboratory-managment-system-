@@ -179,16 +179,10 @@ const ConflictDetection = () => {
     const fetchConflicts = useCallback(async () => {
         try {
             setLoading(true);
-            // Fetch ALL bookings and reservations (no pagination limit)
-            const [bookingsRes, reservationsRes] = await Promise.all([
-                api.get('/bookings', { params: { limit: 1000 } }),
-                api.get('/reservations', { params: { limit: 1000 } })
-            ]);
-            const bookingsList = bookingsRes.data.bookings || [];
-            const reservationsList = reservationsRes.data.reservations || [];
-            setBookings(bookingsList);
-            setReservations(reservationsList);
-            const detectedConflicts = detectConflicts(bookingsList, reservationsList);
+            const response = await api.get('/bookings/conflicts');
+            const detectedConflicts = response.data.conflicts || [];
+            setBookings([]);
+            setReservations([]);
             setConflicts(detectedConflicts);
         } catch (error) {
             console.error('Error fetching data for conflict detection:', error);
@@ -196,7 +190,7 @@ const ConflictDetection = () => {
         } finally {
             setLoading(false);
         }
-    }, [detectConflicts, showMessage]);
+    }, [showMessage]);
 
     useEffect(() => {
         fetchConflicts();

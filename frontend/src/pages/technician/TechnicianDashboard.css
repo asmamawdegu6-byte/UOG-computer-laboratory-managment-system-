@@ -2,15 +2,32 @@
 
 .technician-dashboard {
     padding: 1.5rem;
+    min-height: calc(100vh - 200px);
+}
+
+.dashboard-header-section {
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid var(--campus-secondary, #e8eaf6);
+}
+
+/* Campus Badge */
+.campus-badge {
+    display: inline-block;
+    padding: 0.4rem 0.8rem;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
 }
 
 .technician-dashboard h1 {
     margin-bottom: 0.5rem;
-    color: #1e293b;
+    color: var(--campus-primary, #1e293b);
 }
 
 .welcome-text {
-    color: #64748b;
+    color: var(--campus-accent, #64748b);
     margin-bottom: 1.5rem;
 }
 
@@ -136,4 +153,244 @@
     text-align: center;
     padding: 2rem;
     color: #64748b;
+}
+
+/* Lab Availability Chart */
+.availability-card {
+    margin-top: 1.5rem;
+}
+
+.availability-chart .chart-summary {
+    display: flex;
+    gap: 2rem;
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background: #f5f5f5;
+    border-radius: 8px;
+}
+
+.summary-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.summary-value {
+    font-size: 1.5rem;
+    font-weight: bold;
+}
+
+.summary-item.available .summary-value {
+    color: #10b981;
+}
+
+.summary-item.occupied .summary-value {
+    color: #3b82f6;
+}
+
+.summary-item.total .summary-value {
+    color: #6b7280;
+}
+
+.summary-label {
+    font-size: 0.85rem;
+    color: #6b7280;
+}
+
+.bar-chart {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.bar-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.bar-label {
+    width: 120px;
+    font-size: 0.85rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.bar-container {
+    flex: 1;
+    height: 20px;
+    background: #e5e7eb;
+    border-radius: 4px;
+    display: flex;
+    overflow: hidden;
+}
+
+.bar-fill {
+    height: 100%;
+    transition: width 0.3s ease;
+}
+
+.bar-fill.available {
+    background: #10b981;
+}
+
+.bar-fill.occupied {
+    background: #3b82f6;
+}
+
+.bar-value {
+    width: 60px;
+    text-align: right;
+    font-size: 0.85rem;
+    color: #6b7280;
+}
+
+.chart-legend {
+    display: flex;
+    gap: 1.5rem;
+    margin-top: 1rem;
+    justify-content: center;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+}
+
+.legend-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+}
+
+.legend-color.available {
+    background: #10b981;
+}
+
+.legend-color.occupied {
+    background: #3b82f6;
+}
+
+/* Quick Actions Grid */
+.quick-actions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1rem;
+}
+
+.action-card.large {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.5rem;
+    text-align: left;
+}
+
+.action-card.large .action-icon {
+    font-size: 2rem;
+    flex-shrink: 0;
+}
+
+.action-card.large .action-content {
+    flex: 1;
+}
+
+.action-card.large .action-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #1e293b;
+    margin-bottom: 0.25rem;
+}
+
+.action-card.large .action-description {
+    font-size: 0.85rem;
+    color: #64748b;
+    margin-bottom: 0.5rem;
+}
+
+.action-card.large .action-badge {
+    display: inline-block;
+    background: #e0f2fe;
+    color: #0369a1;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+/* Schedule List */
+.schedule-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.schedule-item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+    background: #f8fafc;
+    border-radius: 8px;
+    border-left: 4px solid #3b82f6;
+}
+
+.schedule-time {
+    font-weight: 600;
+    color: #1e293b;
+    min-width: 120px;
+}
+
+.schedule-info {
+    flex: 1;
+}
+
+.schedule-course {
+    font-weight: 600;
+    color: #1e293b;
+}
+
+.schedule-lab {
+    font-size: 0.85rem;
+    color: #64748b;
+}
+
+.schedule-students {
+    font-size: 0.85rem;
+    color: #64748b;
+    background: #e0f2fe;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+}
+
+/* Loading */
+.loading {
+    text-align: center;
+    padding: 3rem;
+    color: #64748b;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 2rem;
+    color: #64748b;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .quick-actions-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .schedule-item {
+        flex-direction: column;
+        align-items: flex-start;
+    }
 }

@@ -105,7 +105,7 @@ export const NotificationProvider = ({ children }) => {
 
         // If count increased OR first check with unread items, fetch and show toasts
         if (newCount > 0 && (prevUnreadRef.current === null || newCount > prevUnreadRef.current)) {
-          const result = await notificationService.getNotifications({ isRead: false, limit: 10 });
+          const result = await notificationService.getNotifications({ isRead: false, limit: 1000 });
           if (result.success && result.notifications) {
             const newNotifications = result.notifications.filter(
               n => !knownIdsRef.current.has(n._id)

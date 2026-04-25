@@ -64,10 +64,18 @@ const DownloadMaterial = () => {
         }
       });
 
-      // Create blob URL from response data
-      const blob = new Blob([response.data], { 
-        type: response.headers['content-type'] || 'application/octet-stream' 
-      });
+      if (!response || !response.data) {
+        throw new Error('No data received from server');
+      }
+
+      const contentType = response.headers['content-type'] || 'application/octet-stream';
+      if (contentType.includes('application/json')) {
+        const text = await new Response(response.data).text();
+        const data = JSON.parse(text);
+        throw new Error(data.message || 'Download failed');
+      }
+
+      const blob = new Blob([response.data], { type: contentType });
       const url = window.URL.createObjectURL(blob);
       
       // Create and trigger download
@@ -84,7 +92,13 @@ const DownloadMaterial = () => {
       }, 100);
     } catch (err) {
       console.error('Download failed:', err);
-      alert('Failed to download file. Please try again.');
+      let errorMessage = 'Failed to download file. Please try again.';
+      if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      alert(errorMessage);
     } finally {
       setDownloading(null);
     }

@@ -5,6 +5,7 @@ const morgan = require('morgan');
 const dotenv = require('dotenv');
 const path = require('path');
 const { MongoMemoryServer } = require('mongodb-memory-server');
+const { initializeBot } = require('./services/telegramBot');
 
 // Load environment variables
 dotenv.config();
@@ -29,7 +30,12 @@ const errorHandler = require('./middleware/errorHandler');
 const app = express();
 
 // Middleware
-app.use(cors());
+app.use(cors({
+    origin: true, // Allow all origins in development
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -63,21 +69,25 @@ const startServer = async () => {
         console.log('MongoDB Memory Server started!');
     }
 
-    try {
-        await mongoose.connect(mongoUri);
-        console.log('Connected to MongoDB');
+        try {
+            await mongoose.connect(mongoUri);
+            console.log('Connected to MongoDB');
 
-        // Auto-seed data if database is empty
-        await seedData();
-    } catch (err) {
-        console.error('MongoDB connection error:', err);
-        process.exit(1);
-    }
+            // Auto-seed data if database is empty
+            await seedData();
+
+            // Initialize Telegram Bot
+            await initializeBot();
+        } catch (err) {
+            console.error('MongoDB connection error:', err);
+            process.exit(1);
+        }
 };
 
 // Seed data function
 async function seedData() {
     const User = require('./models/User');
+    const Campus = require('./models/Campus');
     const Lab = require('./models/Lab');
     const Reservation = require('./models/Reservation');
     const Attendance = require('./models/Attendance');
@@ -89,30 +99,82 @@ async function seedData() {
         const existingTeacher = await User.findOne({ username: 'teacher' });
 
         if (!existingAdmin) {
-            console.log('Seeding users...');
-            admin = await User.create({
+            console.log('Seeding campuses and users...');
+            
+            // Create campuses first
+            await Campus.create({ name: 'Maraki', code: 'MAR', city: 'Gondar', isActive: true });
+            await Campus.create({ name: 'Atse Tewodros', code: 'ATW', city: 'Gondar', isActive: true });
+            await Campus.create({ name: 'Atse Fasil', code: 'ATF', city: 'Gondar', isActive: true });
+            await Campus.create({ name: 'Health Science College (GC)', code: 'HSC', city: 'Gondar', isActive: true });
+            console.log('Created 4 campuses');
+
+            // Create campus admins
+            await User.create({
                 username: 'admin',
-                email: 'admin@clm.edu',
-                password: 'Admin@123',
-                firstName: 'System',
-                lastName: 'Administrator',
-                name: 'System Administrator',
+                email: 'tewodros.admin@clm.edu',
+                password: 'admin123',
+                firstName: 'Tewodros',
+                lastName: 'Campus Admin',
+                name: 'Tewodros Campus Admin',
                 role: 'admin',
+                campus: 'Atse Tewodros',
                 isActive: true,
                 approvalStatus: 'approved'
             });
 
             await User.create({
-                username: 'superadmin',
-                email: 'superadmin@clm.edu',
-                password: 'Super@123',
-                firstName: 'Super',
-                lastName: 'Administrator',
-                name: 'Super Administrator',
-                role: 'superadmin',
+                username: 'asme',
+                email: 'maraki.admin@clm.edu',
+                password: 'asme123',
+                firstName: 'Maraki',
+                lastName: 'Campus Admin',
+                name: 'Maraki Campus Admin',
+                role: 'admin',
+                campus: 'Maraki',
                 isActive: true,
                 approvalStatus: 'approved'
             });
+
+            await User.create({
+                username: 'yibe',
+                email: 'fasil.admin@clm.edu',
+                password: 'yibe123',
+                firstName: 'Fasil',
+                lastName: 'Campus Admin',
+                name: 'Fasil Campus Admin',
+                role: 'admin',
+                campus: 'Atse Fasil',
+                isActive: true,
+                approvalStatus: 'approved'
+            });
+
+            await User.create({
+                username: 'sami',
+                email: 'gc.admin@clm.edu',
+                password: 'sami123',
+                firstName: 'GC',
+                lastName: 'Campus Admin',
+                name: 'GC Campus Admin',
+                role: 'admin',
+                campus: 'Health Science College (GC)',
+                isActive: true,
+                approvalStatus: 'approved'
+            });
+
+            // Create superadmin
+            await User.create({
+                username: 'asmamaw',
+                email: 'asmamaw@clm.edu',
+                password: 'asme1234',
+                firstName: 'Asmamaw',
+                lastName: 'Super Administrator',
+                name: 'Asmamaw - Super Administrator',
+                role: 'superadmin',
+                phone: '+251928886341',
+                isActive: true,
+                approvalStatus: 'approved'
+            });
+            console.log('Created admin users: admin, asme, yibe, sami, asmamaw');
 
             teacher = await User.create({
                 username: 'teacher',
@@ -193,12 +255,30 @@ async function seedData() {
         const mainStudent = await User.findOne({ username: 'student' });
         if (mainStudent) students.unshift(mainStudent);
 
+        // Ensure Telegram Bot user exists
+        let botUser = await User.findOne({ username: 'telegram_bot' });
+        if (!botUser) {
+            botUser = await User.create({
+                username: 'telegram_bot',
+                email: 'telegram_bot@clm.edu',
+                password: 'TelegramBot123!',
+                firstName: 'Telegram',
+                lastName: 'Bot',
+                name: 'Telegram Bot',
+                role: 'student',
+                isActive: true,
+                approvalStatus: 'approved'
+            });
+            console.log('Telegram bot user created');
+        }
+
         // Always ensure labs exist
         let lab1 = await Lab.findOne({ code: 'LAB-A101' });
         if (!lab1) {
             lab1 = await Lab.create({
                 name: 'Computer Lab A',
                 code: 'LAB-A101',
+                campus: 'Atse Tewodros',
                 location: { building: 'Science Block', floor: '1st Floor', roomNumber: 'A101' },
                 capacity: 30,
                 facilities: ['projector', 'whiteboard', 'ac', 'internet'],
@@ -219,6 +299,7 @@ async function seedData() {
             lab2 = await Lab.create({
                 name: 'Programming Lab B',
                 code: 'LAB-B202',
+                campus: 'Atse Tewodros',
                 location: { building: 'Science Block', floor: '2nd Floor', roomNumber: 'B202' },
                 capacity: 25,
                 facilities: ['projector', 'whiteboard', 'ac', 'internet', 'printer'],
@@ -410,7 +491,37 @@ app.use('/api/notifications', notificationRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
+    console.log('Health check hit from:', req.headers.origin);
     res.json({ status: 'OK', timestamp: new Date().toISOString() });
+});
+
+// Client-side log endpoint
+app.post('/api/logs/client-error', (req, res) => {
+    const { level, message, meta, timestamp } = req.body;
+    const logEntry = `[${timestamp || new Date().toISOString()}] [CLIENT-${level}] ${message} | ${JSON.stringify(meta)}\n`;
+    
+    const fs = require('fs');
+    const logPath = path.join(__dirname, 'logs', 'client-error.log');
+    
+    fs.appendFileSync(logPath, logEntry);
+    res.json({ success: true });
+});
+
+// Test endpoint for CORS
+app.options('*', (req, res) => {
+    console.log('OPTIONS request:', req.path);
+    res.status(204).end();
+});
+
+app.get('/api/test', (req, res) => {
+    console.log('Test endpoint hit from:', req.headers.origin);
+    res.json({ message: 'API is working', method: 'GET' });
+});
+
+app.patch('/api/test-patch', (req, res) => {
+    console.log('Test PATCH endpoint hit from:', req.headers.origin);
+    console.log('Body:', req.body);
+    res.json({ message: 'PATCH works', received: req.body });
 });
 
 // 404 handler

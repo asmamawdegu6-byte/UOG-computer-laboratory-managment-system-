@@ -37,6 +37,9 @@ const MyProfile = () => {
         confirmPassword: ''
     });
 
+    // Deactivation state
+    const [deactivating, setDeactivating] = useState(false);
+
     // Editing state
     const [isEditing, setIsEditing] = useState(false);
 
@@ -169,6 +172,45 @@ const MyProfile = () => {
             showNotification('error', error?.response?.data?.message || 'Failed to change password');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleToggleStatus = async () => {
+        if (user?.role === 'superadmin') {
+            showNotification('error', 'Superadmin account cannot be deactivated');
+            return;
+        }
+
+        const confirmMessage = user?.isActive 
+            ? 'Are you sure you want to deactivate your account? You will be logged out immediately.'
+            : 'Are you sure you want to activate your account?';
+
+        if (!window.confirm(confirmMessage)) return;
+
+        setDeactivating(true);
+        try {
+            const result = await userService.toggleUserStatus(user.id || user._id);
+            if (result.success) {
+                showNotification('success', result.message);
+                
+                // If deactivated, logout
+                if (!result.user.isActive) {
+                    setTimeout(() => {
+                        localStorage.removeItem('token');
+                        localStorage.removeItem('user');
+                        window.location.href = '/login';
+                    }, 1500);
+                } else {
+                    // Update local user data
+                    localStorage.setItem('user', JSON.stringify(result.user));
+                }
+            } else {
+                showNotification('error', result.message || 'Failed to update account status');
+            }
+        } catch (error) {
+            showNotification('error', error?.response?.data?.message || 'Failed to update account status');
+        } finally {
+            setDeactivating(false);
         }
     };
 
@@ -496,10 +538,28 @@ const MyProfile = () => {
                                 </div>
                                 <div className="info-item">
                                     <span className="info-label">Account Status</span>
-                                    <span className="info-value status-active">Active</span>
+                                    <span className={`info-value ${user?.isActive ? 'status-active' : 'status-inactive'}`}>
+                                        {user?.isActive ? 'Active' : 'Inactive'}
+                                    </span>
                                 </div>
                             </div>
                         </div>
+
+                        {user?.role !== 'superadmin' && (
+                            <div className="danger-zone">
+                                <h3>Danger Zone</h3>
+                                <p> {user?.isActive 
+                                    ? 'Deactivate your account to prevent login access.' 
+                                    : 'Activate your account to restore login access.'}</p>
+                                <Button 
+                                    variant={user?.isActive ? 'danger' : 'primary'}
+                                    onClick={handleToggleStatus}
+                                    loading={deactivating}
+                                >
+                                    {user?.isActive ? 'Deactivate Account' : 'Activate Account'}
+                                </Button>
+                            </div>
+                        )}
                     </Card>
                 )}
             </div>

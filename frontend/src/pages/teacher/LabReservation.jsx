@@ -17,15 +17,22 @@ const LabReservation = () => {
   const [success, setSuccess] = useState('');
   const [activeTab, setActiveTab] = useState('new');
   const [selectedLab, setSelectedLab] = useState(null);
+  const [selectedRoom, setSelectedRoom] = useState(null);
   const [availability, setAvailability] = useState(null);
   const [checkingAvailability, setCheckingAvailability] = useState(false);
   const [formData, setFormData] = useState({
     labId: '',
+    roomId: '',
     date: '',
     startTime: '',
     endTime: '',
     courseName: '',
     courseCode: '',
+    semester: '',
+    academicYear: '',
+    year: '',
+    section: '',
+    program: '',
     numberOfStudents: '',
     description: '',
     requiredWorkstations: ''
@@ -61,9 +68,17 @@ const LabReservation = () => {
     if (name === 'labId' && value) {
       const lab = labs.find(l => l._id === value);
       setSelectedLab(lab);
+      setSelectedRoom(null);
+      setFormData(prev => ({ ...prev, roomId: '' }));
     } else if (name === 'labId' && !value) {
       setSelectedLab(null);
+      setSelectedRoom(null);
       setAvailability(null);
+    } else if (name === 'roomId' && value && selectedLab) {
+      const room = selectedLab.rooms?.find(r => r._id === value);
+      setSelectedRoom(room);
+    } else if (name === 'roomId' && !value) {
+      setSelectedRoom(null);
     }
   };
 
@@ -90,9 +105,23 @@ const LabReservation = () => {
       const approvedReservations = response.data.reservations || [];
       const selectedDate = new Date(formData.date).toDateString();
 
-      const conflicts = approvedReservations.filter(r => {
+      // Filter by date first
+      let dateReservations = approvedReservations.filter(r => {
         const resDate = new Date(r.date).toDateString();
-        if (resDate !== selectedDate) return false;
+        return resDate === selectedDate;
+      });
+
+      // If room is selected, filter by room as well
+      if (formData.roomId) {
+        const selectedRoom = selectedLab?.rooms?.find(r => r._id === formData.roomId);
+        dateReservations = dateReservations.filter(r => {
+          // Either no room selected for that reservation OR same room
+          if (!r.roomId) return true; // Legacy reservations without room
+          return r.roomId === formData.roomId || r.roomId === selectedRoom?._id;
+        });
+      }
+
+      const conflicts = dateReservations.filter(r => {
         const existingStart = r.startTime;
         const existingEnd = r.endTime;
         return (formData.startTime < existingEnd && formData.endTime > existingStart);
@@ -103,6 +132,8 @@ const LabReservation = () => {
           available: false,
           conflicts: conflicts.map(c => ({
             course: c.courseName,
+            courseCode: c.courseCode,
+            room: c.roomName || 'Lab',
             time: `${c.startTime} - ${c.endTime}`,
             teacher: c.teacher?.name || 'Unknown'
           }))
@@ -133,17 +164,30 @@ const LabReservation = () => {
       return;
     }
 
-    if (parseInt(formData.numberOfStudents) > selectedLab?.capacity) {
-      setError(`Number of students exceeds lab capacity (${selectedLab.capacity})`);
+    const capacity = selectedRoom ? selectedRoom.capacity : selectedLab?.capacity;
+    if (parseInt(formData.numberOfStudents) > capacity) {
+      setError(`Number of students exceeds capacity (${capacity})`);
       return;
     }
 
     setSubmitting(true);
     try {
       const data = {
-        ...formData,
+        labId: formData.labId,
+        roomId: formData.roomId || undefined,
+        courseName: formData.courseName,
+        courseCode: formData.courseCode,
+        semester: formData.semester || undefined,
+        academicYear: formData.academicYear || undefined,
+        year: formData.year ? parseInt(formData.year) : undefined,
+        section: formData.section || undefined,
+        program: formData.program || undefined,
+        date: formData.date,
+        startTime: formData.startTime,
+        endTime: formData.endTime,
         numberOfStudents: parseInt(formData.numberOfStudents, 10),
-        requiredWorkstations: formData.requiredWorkstations ? parseInt(formData.requiredWorkstations, 10) : undefined
+        requiredWorkstations: formData.requiredWorkstations ? parseInt(formData.requiredWorkstations, 10) : undefined,
+        description: formData.description
       };
 
       const response = await api.post('/reservations', data);
@@ -152,16 +196,23 @@ const LabReservation = () => {
         setSuccess('Reservation submitted successfully! Waiting for admin approval.');
         setFormData({
           labId: '',
+          roomId: '',
           date: '',
           startTime: '',
           endTime: '',
           courseName: '',
           courseCode: '',
+          semester: '',
+          academicYear: '',
+          year: '',
+          section: '',
+          program: '',
           numberOfStudents: '',
           description: '',
           requiredWorkstations: ''
         });
         setSelectedLab(null);
+        setSelectedRoom(null);
         setAvailability(null);
         const reservationsRes = await api.get('/reservations/my-reservations');
         setReservations(reservationsRes.data.reservations || []);
@@ -209,6 +260,11 @@ const LabReservation = () => {
       header: 'Lab',
       accessor: 'lab.name',
       render: (row) => <span className="lab-name">{row.lab?.name || 'N/A'}</span>
+    },
+    {
+      header: 'Room',
+      accessor: 'roomName',
+      render: (row) => <span className="room-name">{row.roomName || 'N/A'}</span>
     },
     {
       header: 'Course',
@@ -317,6 +373,19 @@ const LabReservation = () => {
                       ))}
                     </select>
                   </div>
+                  {selectedLab && selectedLab.rooms && selectedLab.rooms.length > 0 && (
+                    <div className="form-group">
+                      <label>Room *</label>
+                      <select name="roomId" value={formData.roomId} onChange={handleChange} required>
+                        <option value="">Choose a room...</option>
+                        {selectedLab.rooms.map(room => (
+                          <option key={room._id} value={room._id}>
+                            {room.name} ({room.capacity} seats)
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   <div className="form-group">
                     <label>Date *</label>
                     <input
@@ -346,8 +415,16 @@ const LabReservation = () => {
                       </div>
                       <div className="lab-detail">
                         <span className="detail-label">Capacity</span>
-                        <span className="detail-value">{selectedLab.capacity} workstations</span>
+                        <span className="detail-value">
+                          {selectedRoom ? `${selectedRoom.capacity} workstations` : `${selectedLab.capacity} workstations`}
+                        </span>
                       </div>
+                      {selectedRoom && (
+                        <div className="lab-detail">
+                          <span className="detail-label">Room</span>
+                          <span className="detail-value">{selectedRoom.name} ({selectedRoom.type || 'general'})</span>
+                        </div>
+                      )}
                       <div className="lab-detail">
                         <span className="detail-label">Facilities</span>
                         <span className="detail-value">
@@ -383,6 +460,57 @@ const LabReservation = () => {
                       onChange={handleChange}
                       placeholder="e.g. CS101"
                       required
+                    />
+                  </div>
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Semester</label>
+                    <select name="semester" value={formData.semester} onChange={handleChange}>
+                      <option value="">Select Semester</option>
+                      <option value="Fall">Fall</option>
+                      <option value="Spring">Spring</option>
+                      <option value="Summer">Summer</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Academic Year</label>
+                    <select name="academicYear" value={formData.academicYear} onChange={handleChange}>
+                      <option value="">Select Year</option>
+                      <option value="2023/2024">2023/2024</option>
+                      <option value="2024/2025">2024/2025</option>
+                      <option value="2025/2026">2025/2026</option>
+                      <option value="2026/2027">2026/2027</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Year</label>
+                    <select name="year" value={formData.year} onChange={handleChange}>
+                      <option value="">Select Year</option>
+                      <option value="1">1st Year</option>
+                      <option value="2">2nd Year</option>
+                      <option value="3">3rd Year</option>
+                      <option value="4">4th Year</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Section</label>
+                    <input
+                      type="text"
+                      name="section"
+                      value={formData.section}
+                      onChange={handleChange}
+                      placeholder="e.g. A, B"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Program</label>
+                    <input
+                      type="text"
+                      name="program"
+                      value={formData.program}
+                      onChange={handleChange}
+                      placeholder="e.g. Computer Science"
                     />
                   </div>
                 </div>
@@ -477,7 +605,7 @@ const LabReservation = () => {
                             <span>Lab is NOT available. Conflicts:</span>
                             <ul className="conflict-list">
                               {availability.conflicts.map((c, i) => (
-                                <li key={i}>{c.course} ({c.time}) - {c.teacher}</li>
+                                <li key={i}>{c.course} ({c.courseCode}) - {c.room} - {c.time} - {c.teacher}</li>
                               ))}
                             </ul>
                           </div>

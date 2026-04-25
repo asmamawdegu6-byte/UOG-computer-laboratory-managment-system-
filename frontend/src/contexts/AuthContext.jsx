@@ -8,9 +8,9 @@ export const AuthProvider = ({ children }) => {
   const [loading] = useState(false);
   console.log('[DEBUG] AuthContext.jsx: Initialized - user:', user, 'loading:', loading);
 
-  const login = async (username, password) => {
+  const login = async (username, password, role = null) => {
     try {
-      const result = await authService.login(username, password);
+      const result = await authService.login(username, password, role);
       if (result.success) {
         setUser(result.user);
       }

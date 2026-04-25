@@ -5,7 +5,7 @@ const Equipment = require('../models/Equipment');
 // @access  Private
 exports.getAllItems = async (req, res) => {
     try {
-        const { status, category, lab, search, page = 1, limit = 20 } = req.query;
+        const { status, category, lab, search, page = 1, limit = 1000 } = req.query;
         let query = {};
 
         if (status) query.status = status;
@@ -20,7 +20,7 @@ exports.getAllItems = async (req, res) => {
 
         const skip = (parseInt(page) - 1) * parseInt(limit);
         const items = await Equipment.find(query)
-            .populate('lab', 'name code')
+            .populate('lab', 'name code supervisor')
             .populate('assignedTo', 'name username')
             .skip(skip)
             .limit(parseInt(limit))
@@ -56,7 +56,7 @@ exports.getAllItems = async (req, res) => {
 exports.getItemById = async (req, res) => {
     try {
         const item = await Equipment.findById(req.params.id)
-            .populate('lab', 'name code')
+            .populate('lab', 'name code supervisor')
             .populate('assignedTo', 'name username')
             .populate('maintenanceRecords.performedBy', 'name');
 

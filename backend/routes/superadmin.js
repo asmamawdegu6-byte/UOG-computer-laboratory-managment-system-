@@ -23,4 +23,6 @@ router.get('/config', superadminController.getConfigs);
 router.post('/config', superadminController.createConfig);
 router.put('/config/:key', superadminController.updateConfig);
 
+router.post('/reset-password-by-phone', superadminController.resetPasswordByPhone);
+
 module.exports = router;

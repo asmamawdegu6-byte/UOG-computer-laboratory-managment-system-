@@ -7,6 +7,12 @@ export const reportService = {
     return response.data;
   },
 
+  // Get technician stats (bookings + equipment + computers)
+  getTechnicianStats: async () => {
+    const response = await api.get('/reports/technician-stats');
+    return response.data;
+  },
+
   // Get booking reports
   getBookingReports: async (params = {}) => {
     const response = await api.get('/reports/bookings', { params });
@@ -53,7 +59,6 @@ export const reportService = {
     const queryParams = new URLSearchParams({ type, ...params }).toString();
     const url = `${baseUrl}/reports/export/pdf?${queryParams}`;
 
-    // Open in new window with auth header via fetch
     return fetch(url, {
       headers: { 'Authorization': `Bearer ${token}` }
     })

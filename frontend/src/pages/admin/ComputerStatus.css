@@ -1,0 +1,458 @@
+.computer-status-page {
+    padding: 1.5rem;
+}
+
+.computer-status-page .header {
+    margin-bottom: 1.5rem;
+}
+
+.computer-status-page .header-left {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.computer-status-page .back-button {
+    background: #f3f4f6;
+    border: 1px solid #d1d5db;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    color: #374151;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.computer-status-page .back-button:hover {
+    background: #e5e7eb;
+    border-color: #9ca3af;
+}
+
+.computer-status-page .header h1 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.computer-status-page .header p {
+    color: #6b7280;
+}
+
+.campus-selector,
+.lab-selector {
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.campus-selector label,
+.lab-selector label {
+    font-weight: 500;
+}
+
+.campus-selector select,
+.lab-selector select {
+    padding: 0.5rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+    min-width: 200px;
+}
+
+.loading {
+    text-align: center;
+    padding: 2rem;
+    color: #6b7280;
+}
+
+.overall-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.stat-card {
+    padding: 1rem;
+    border-radius: 0.5rem;
+    text-align: center;
+    color: white;
+}
+
+.stat-card.available {
+    background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.stat-card.occupied {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+}
+
+.stat-card.maintenance {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+.stat-card.reserved {
+    background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+}
+
+.stat-number {
+    font-size: 2rem;
+    font-weight: 700;
+}
+
+.stat-label {
+    font-size: 0.875rem;
+    opacity: 0.9;
+}
+
+.stat-percentage {
+    font-size: 0.75rem;
+    margin-top: 0.25rem;
+    opacity: 0.9;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 3px;
+    margin-top: 0.5rem;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.rooms-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.room-card {
+    padding: 1rem;
+    transition: all 0.2s ease;
+}
+
+.room-card.selected {
+    border: 2px solid #3b82f6;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.room-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.room-card-inner {
+    padding: 1rem;
+}
+
+.room-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.room-header h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.room-type {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 9999px;
+    background: #e5e7eb;
+    color: #374151;
+}
+
+.room-type.female_only {
+    background: #fce7f3;
+    color: #be185d;
+}
+
+.room-type.male_only {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.room-type.post {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.room-stats {
+    margin-bottom: 0.75rem;
+    font-size: 0.875rem;
+    color: #6b7280;
+}
+
+.computers-grid {
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    gap: 8px;
+    margin: 1rem 0;
+    padding: 1rem;
+    background: #f9fafb;
+    border-radius: 8px;
+}
+
+.computer {
+    aspect-ratio: 1;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    min-height: 40px;
+}
+
+.computer:hover {
+    transform: scale(1.15);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    z-index: 10;
+}
+
+.computer.available {
+    background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.computer.occupied {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+}
+
+.computer.maintenance {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+.computer.reserved {
+    background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+}
+
+.computer.available {
+    opacity: 0.8;
+}
+
+.computer.occupied {
+    opacity: 1;
+}
+
+.computer.maintenance {
+    opacity: 0.8;
+}
+
+.computer.reserved {
+    opacity: 0.8;
+}
+
+.room-summary {
+    display: flex;
+    justify-content: space-around;
+    font-size: 0.75rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid #e5e7eb;
+}
+
+.legend {
+    display: flex;
+    justify-content: center;
+    gap: 1.5rem;
+    padding: 1rem;
+    background: #f9fafb;
+    border-radius: 0.5rem;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+}
+
+.legend-color {
+    width: 1rem;
+    height: 1rem;
+    border-radius: 4px;
+}
+
+@media (max-width: 768px) {
+    .overall-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .computers-grid {
+        grid-template-columns: repeat(5, 1fr);
+    }
+}
+
+/* Selected Room Detail View */
+.selected-room-detail {
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-top: 1.5rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    border: 2px solid #3b82f6;
+}
+
+.detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.detail-header h2 {
+    margin: 0;
+    font-size: 1.25rem;
+    color: #1f2937;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: #6b7280;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+}
+
+.close-btn:hover {
+    background: #f3f4f6;
+    color: #1f2937;
+}
+
+.detail-stats {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.detail-stat {
+    flex: 1;
+    padding: 1rem;
+    border-radius: 8px;
+    text-align: center;
+    color: white;
+}
+
+.detail-stat.available {
+    background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.detail-stat.occupied {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+}
+
+.detail-stat.maintenance {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+.detail-stat.reserved {
+    background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+}
+
+.detail-stat .stat-count {
+    display: block;
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.detail-stat .stat-text {
+    font-size: 0.875rem;
+    opacity: 0.9;
+}
+
+.computer-grid-large {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 12px;
+}
+
+.computer-large {
+    aspect-ratio: 1;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.computer-large:hover {
+    transform: scale(1.1);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.computer-large.available {
+    background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.computer-large.occupied {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+}
+
+.computer-large.maintenance {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+.computer-large.reserved {
+    background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+}
+
+.computer-icon {
+    font-size: 1.25rem;
+    margin-bottom: 4px;
+}
+
+.computer-number {
+    font-size: 0.875rem;
+}
+
+.computer-status-label {
+    font-size: 0.625rem;
+    text-transform: uppercase;
+    opacity: 0.8;
+}
+
+@media (max-width: 1024px) {
+    .computer-grid-large {
+        grid-template-columns: repeat(6, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .computer-grid-large {
+        grid-template-columns: repeat(4, 1fr);
+    }
+
+    .detail-stats {
+        flex-wrap: wrap;
+    }
+
+    .detail-stat {
+        min-width: 45%;
+    }
+}

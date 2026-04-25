@@ -49,20 +49,58 @@ const ReservationManagement = () => {
     const handleApprove = async (reservation) => {
         setActionLoading(reservation._id);
         setConflictInfo(null);
+        
+        const reservationId = reservation._id;
+        console.log('========== FRONTEND APPROVE CLICKED ==========');
+        console.log('Reservation ID:', reservationId);
+        console.log('Full reservation:', reservation);
+        
+        if (!reservationId) {
+            console.error('ERROR: Reservation ID is missing!');
+            showMessage('error', 'Error: Reservation ID is missing');
+            setActionLoading(null);
+            return;
+        }
+        
         try {
-            const response = await api.patch(`/reservations/${reservation._id}/approve`);
+            const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+            const url = `${API_BASE_URL}/reservations/${reservationId}/approve`;
+            console.log('Making PATCH request to:', url);
+            
+            const token = localStorage.getItem('token');
+            console.log('Auth token exists:', !!token);
+            
+            const response = await api.patch(`/reservations/${reservationId}/approve`);
+            console.log('Response:', response.data);
+            
             if (response.data.success) {
                 showMessage('success', `Reservation for "${reservation.courseName}" approved successfully`);
                 fetchReservations();
                 setShowModal(false);
+            } else {
+                if (response.data.conflicts) {
+                    setConflictInfo(response.data.conflicts);
+                }
+                showMessage('error', response.data.message || `Failed to approve reservation`);
             }
         } catch (err) {
-            const data = err.response?.data;
-            if (data?.conflicts) {
-                setConflictInfo(data.conflicts);
-                showMessage('error', data.message);
+            console.error('Approve error:', err);
+            console.error('Error response:', err.response);
+            console.error('Error status:', err.response?.status);
+            console.error('Error data:', err.response?.data);
+            
+            const errorData = err.response?.data;
+            if (errorData?.conflicts) {
+                setConflictInfo(errorData.conflicts);
+                showMessage('error', errorData.message);
+            } else if (errorData?.message) {
+                showMessage('error', errorData.message);
+            } else if (err.response) {
+                showMessage('error', `Server error: ${err.response.status} - ${err.response.statusText}`);
+            } else if (err.request) {
+                showMessage('error', 'Network error: Server not responding. Please check if backend is running.');
             } else {
-                showMessage('error', data?.message || 'Failed to approve reservation');
+                showMessage('error', `Failed to approve reservation: ${err.message}`);
             }
         } finally {
             setActionLoading(null);
@@ -157,6 +195,11 @@ const ReservationManagement = () => {
             header: 'Lab',
             accessor: 'lab.name',
             render: (row) => row.lab?.name || 'N/A'
+        },
+        {
+            header: 'Room',
+            accessor: 'roomName',
+            render: (row) => row.roomName || 'N/A'
         },
         {
             header: 'Date',
@@ -329,6 +372,7 @@ const ReservationManagement = () => {
                                 <h3>Session Details</h3>
                                 <p><strong>Course:</strong> {selectedReservation.courseName} ({selectedReservation.courseCode})</p>
                                 <p><strong>Lab:</strong> {selectedReservation.lab?.name}</p>
+                                <p><strong>Room:</strong> {selectedReservation.roomName || 'N/A'}</p>
                                 <p><strong>Date:</strong> {new Date(selectedReservation.date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
                                 <p><strong>Time:</strong> {selectedReservation.startTime} - {selectedReservation.endTime}</p>
                                 <p><strong>Students:</strong> {selectedReservation.numberOfStudents}</p>

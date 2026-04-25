@@ -54,6 +54,8 @@ const validate = (req, res, next) => {
 router.post('/login', [
     body('username').trim().notEmpty().withMessage('Username is required'),
     body('password').notEmpty().withMessage('Password is required'),
+    body('role').notEmpty().withMessage('Role is required'),
+    body('role').isIn(['student', 'teacher', 'technician', 'admin', 'superadmin']).withMessage('Invalid role'),
     validate
 ], authController.login);
 
@@ -76,6 +78,30 @@ router.post('/reset-password', [
     body('newPassword').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
     validate
 ], authController.resetPassword);
+
+// @route   POST /api/auth/send-reset-code
+// @desc    Send verification code via SMS (Super Admin only)
+router.post('/send-reset-code', authController.sendResetCode);
+
+// @route   POST /api/auth/find-user-for-reset
+// @desc    Find user by username for password reset (Super Admin only)
+router.post('/find-user-for-reset', authController.findUserForReset);
+
+// @route   POST /api/auth/verify-reset-code
+// @desc    Verify reset code
+router.post('/verify-reset-code', [
+    body('phone').notEmpty().withMessage('Phone is required'),
+    body('code').notEmpty().withMessage('Code is required'),
+    validate
+], authController.verifyResetCode);
+
+// @route   POST /api/auth/reset-password-by-phone
+// @desc    Reset password by phone
+router.post('/reset-password-by-phone', [
+    body('phone').notEmpty().withMessage('Phone is required'),
+    body('newPassword').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+    validate
+], authController.resetPasswordByPhone);
 
 // @route   GET /api/auth/me
 router.get('/me', authenticate, authController.getMe);

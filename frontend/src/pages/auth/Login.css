@@ -1,10 +1,12 @@
 .login-container {
-  max-width: 400px;
+  width: 100%;
+  max-width: 760px;
   margin: 0 auto;
+  padding: 0;
 }
 
 .login-container h2 {
-  font-size: 1.875rem;
+  font-size: 1.75rem;
   font-weight: 700;
   color: #1e293b;
   margin-bottom: 0.5rem;
@@ -12,19 +14,65 @@
 
 .login-container>p {
   color: #64748b;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
+  font-size: 1rem;
 }
 
 .login-form {
+  width: 100%;
   margin-bottom: 1.5rem;
+}
+
+.login-form .form-group {
+  margin-bottom: 1rem;
+}
+
+.login-form label {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.35rem;
+}
+
+.login-form input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.login-form input:focus,
+.login-form select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.login-form select {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  background-color: white;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 0.5rem center;
+  background-repeat: no-repeat;
+  background-size: 1.5em 1.5em;
+  padding-right: 2.5rem;
 }
 
 .form-options {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1.5rem;
-  font-size: 0.875rem;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
 }
 
 .remember-me {
@@ -39,6 +87,7 @@
   color: #2563eb;
   text-decoration: none;
   font-weight: 500;
+  font-size: 1rem;
 }
 
 .forgot-password:hover {
@@ -47,14 +96,24 @@
 
 .login-btn {
   width: 100%;
-  padding: 0.875rem;
+  padding: 0.75rem;
   font-size: 1rem;
+  background-color: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.login-btn:hover {
+  background-color: #2563eb;
 }
 
 .register-link {
   text-align: center;
   color: #64748b;
-  font-size: 0.875rem;
+  font-size: 1rem;
 }
 
 .register-link a {
@@ -65,18 +124,6 @@
 
 .register-link a:hover {
   text-decoration: underline;
-}
-
-.login-image {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin-bottom: 1.5rem;
-}
-
-.login-image svg {
-  width: 120px;
-  height: 120px;
 }
 
 .info-message {
@@ -107,4 +154,127 @@
   margin-bottom: 1.5rem;
   color: #991b1b;
   font-size: 0.875rem;
+}
+
+.demo-credentials {
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border: 1px solid #bae6fd;
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.demo-credentials .demo-title {
+  font-weight: 600;
+  color: #0369a1;
+  margin-bottom: 0.75rem;
+  font-size: 0.95rem;
+}
+
+.demo-credentials ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.demo-credentials li {
+  color: #075985;
+  font-size: 0.875rem;
+  padding: 0.35rem 0;
+}
+
+.demo-credentials li:last-child {
+  border-bottom: none;
+}
+
+.demo-credentials strong {
+  color: #0c4a6e;
+}
+
+/* Forgot Password Link */
+.forgot-password-link {
+  text-align: center;
+  margin-top: 1rem;
+}
+
+.link-button {
+  background: none;
+  border: none;
+  color: #2563eb;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.link-button:hover {
+  text-decoration: underline;
+}
+
+/* User Info Box */
+.user-info-box {
+  background-color: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.user-info-box p {
+  margin: 0.5rem 0;
+  color: #0369a1;
+  font-size: 0.875rem;
+}
+
+.user-info-box strong {
+  color: #0c4a6e;
+}
+
+.info-text {
+  color: #64748b;
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+/* Campus Login Specific */
+.campus-login-container {
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.campus-login-container .login-container {
+  max-width: 100%;
+}
+
+.campus-role-info {
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.campus-role-info h4 {
+  margin: 0 0 0.75rem 0;
+  color: #334155;
+  font-size: 0.95rem;
+}
+
+.campus-role-info ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.campus-role-info li {
+  color: #64748b;
+  font-size: 0.85rem;
+  padding: 0.35rem 0;
+}
+
+.campus-role-info li strong {
+  color: #334155;
 }

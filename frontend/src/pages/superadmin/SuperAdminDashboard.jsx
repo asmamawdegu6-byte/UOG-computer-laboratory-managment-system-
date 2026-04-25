@@ -33,7 +33,8 @@ const SuperAdminDashboard = () => {
         { label: 'Campus Management', path: '/superadmin/campuses', icon: '🏢', color: '#1a237e' },
         { label: 'Role Management', path: '/admin/users', icon: '🔑', color: '#4a148c' },
         { label: 'Audit Logs', path: '/superadmin/audit', icon: '📜', color: '#004d40' },
-        { label: 'System Config', path: '/superadmin/config', icon: '⚙️', color: '#bf360c' }
+        { label: 'System Config', path: '/superadmin/config', icon: '⚙️', color: '#bf360c' },
+        { label: 'Telegram Bot', path: 'https://t.me/uog_computer_lab_bot', external: true, icon: '📱', color: '#0088cc' }
     ];
 
     return (
@@ -70,10 +71,22 @@ const SuperAdminDashboard = () => {
                 <h2 className="section-title">Quick Actions</h2>
                 <div className="quick-actions-grid">
                     {quickActions.map(action => (
-                        <Link key={action.label} to={action.path} className="action-tile" style={{ borderTop: `4px solid ${action.color}` }}>
-                            <span className="action-icon">{action.icon}</span>
-                            <span className="action-label">{action.label}</span>
-                        </Link>
+                        action.external ? (
+                            <button
+                                key={action.label}
+                                onClick={() => window.open(action.path, '_blank')}
+                                className="action-tile"
+                                style={{ borderTop: `4px solid ${action.color}` }}
+                            >
+                                <span className="action-icon">{action.icon}</span>
+                                <span className="action-label">{action.label}</span>
+                            </button>
+                        ) : (
+                            <Link key={action.label} to={action.path} className="action-tile" style={{ borderTop: `4px solid ${action.color}` }}>
+                                <span className="action-icon">{action.icon}</span>
+                                <span className="action-label">{action.label}</span>
+                            </Link>
+                        )
                     ))}
                 </div>
 
