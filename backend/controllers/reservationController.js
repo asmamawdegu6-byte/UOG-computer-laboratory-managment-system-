@@ -37,7 +37,7 @@ exports.checkAvailability = async (req, res) => {
             roomCapacity = room.capacity;
         }
 
-        // Find all reservations for this lab/room on this date (approved or pending)
+// Find all reservations for this lab/room on this date - show both pending and approved for visibility
         const scheduleQuery = {
             lab: labId,
             date: { $gte: startOfDay, $lte: endOfDay },
@@ -52,11 +52,11 @@ exports.checkAvailability = async (req, res) => {
             .populate('assignedTechnician', 'name')
             .sort({ startTime: 1 });
 
-        // Check if the specific requested slot conflicts
+// Check if the specific requested slot conflicts - ONLY approved reservations block availability
         const conflictQuery = {
             lab: labId,
             date: queryDate,
-            status: { $in: ['pending', 'approved'] },
+            status: 'approved', // Only approved reservations make the room unavailable
             $or: [
                 { startTime: { $lt: endTime }, endTime: { $gt: startTime } }
             ]
@@ -139,11 +139,10 @@ exports.getAllReservations = async (req, res) => {
                 query.campus = req.user.campus;
             }
         } else if (req.user.role === 'teacher') {
+            // Default to teacher's own reservations if myReservations is true
             if (myReservations === 'true') {
                 query.teacher = req.user._id;
-            } else {
-                query.$or = [{ teacher: req.user._id }, { status: 'pending' }];
-            }
+            } 
         } else if (req.user.role === 'student') {
             query.status = 'approved';
         }
@@ -282,11 +281,11 @@ exports.createReservation = async (req, res) => {
 
         // Duration check already done above
 
-        // Check for overlapping reservations for the same room/lab
+// Check for overlapping reservations - ONLY approved reservations block new bookings
         const overlapQuery = {
             lab: labId,
             date: bookingDate,
-            status: { $in: ['pending', 'approved'] },
+            status: 'approved', // Only approved reservations block new bookings
             $or: [
                 { startTime: { $lt: endTime }, endTime: { $gt: startTime } }
             ]
@@ -440,9 +439,9 @@ exports.createRecurringReservations = async (req, res) => {
                 const dayEnd = new Date(currentDate);
                 dayEnd.setHours(23, 59, 59, 999);
 
-                const existingConflict = await Reservation.findOne({
+const existingConflict = await Reservation.findOne({
                     lab: labId,
-                    status: { $in: ['pending', 'approved'] },
+                    status: 'approved', // Only approved reservations block new recurring bookings
                     date: { $gte: dayStart, $lte: dayEnd },
                     startTime: { $lt: endTime },
                     endTime: { $gt: startTime }
@@ -581,9 +580,14 @@ exports.getTimetable = async (req, res) => {
                 courseName: r.courseName,
                 courseCode: r.courseCode,
                 lab: r.lab,
+                roomName: r.roomName,
                 startTime: r.startTime,
                 endTime: r.endTime,
                 numberOfStudents: r.numberOfStudents,
+                academicYear: r.academicYear,
+                semester: r.semester,
+                year: r.year,
+                section: r.section,
                 status: r.status,
                 isRecurring: r.recurring?.isRecurring || false,
                 technician: r.assignedTechnician?.name || 'Unassigned'

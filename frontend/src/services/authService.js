@@ -98,7 +98,15 @@ export const authService = {
     return response.data;
   },
 
-  resetPassword: async (token, newPassword) => {
+resetPassword: async (token, newPassword) => {
+    if (USE_MOCK_AUTH) {
+      return { success: true, message: 'Password reset successful!' };
+    }
+    const response = await api.post('/auth/reset-password', { token, newPassword });
+    return response.data;
+  },
+
+  resetPasswordWithToken: async (token, newPassword) => {
     if (USE_MOCK_AUTH) {
       return { success: true, message: 'Password reset successful!' };
     }
@@ -134,11 +142,36 @@ export const authService = {
     return response.data;
   },
 
-  resetPasswordByPhone: async (phone, newPassword) => {
+resetPasswordByPhone: async (phone, newPassword) => {
     if (USE_MOCK_AUTH) {
       return { success: true, message: 'Password reset successful!' };
     }
     const response = await api.post('/auth/reset-password-by-phone', { phone, newPassword });
+    return response.data;
+  },
+
+  // Email verification code methods
+  sendEmailCode: async (email) => {
+    if (USE_MOCK_AUTH) {
+      return { success: true, message: 'Verification code sent to ' + email, code: '123456' };
+    }
+    const response = await api.post('/auth/send-email-code', { email });
+    return response.data;
+  },
+
+  verifyEmailCode: async (email, code) => {
+    if (USE_MOCK_AUTH) {
+      return { success: true, message: 'Code verified' };
+    }
+    const response = await api.post('/auth/verify-email-code', { email, code });
+    return response.data;
+  },
+
+  resetPasswordByEmail: async (email, newPassword) => {
+    if (USE_MOCK_AUTH) {
+      return { success: true, message: 'Password reset successful!' };
+    }
+    const response = await api.post('/auth/reset-password-by-email', { email, newPassword });
     return response.data;
   },
 

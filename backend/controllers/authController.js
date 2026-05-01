@@ -5,6 +5,195 @@ const jwt = require('jsonwebtoken');
 const logger = require('../utils/logger');
 const AuditLog = require('../models/AuditLog');
 
+const SUPERADMIN_USERNAME = 'asmamaw';
+const DEFAULT_SUPERADMIN_PHONE = '0928886341';
+
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const getSuperAdminResetPhone = () => process.env.SUPERADMIN_PHONE || DEFAULT_SUPERADMIN_PHONE;
+
+const isSuperAdminUsername = (username = '') => username.trim().toLowerCase() === SUPERADMIN_USERNAME;
+
+const findUserByResetUsername = (username) => {
+    const trimmedUsername = username.trim();
+
+    if (isSuperAdminUsername(trimmedUsername)) {
+        return User.findOne({ username: SUPERADMIN_USERNAME });
+    }
+
+    return User.findOne({
+        username: { $regex: new RegExp('^' + escapeRegex(trimmedUsername) + '$', 'i') }
+    });
+};
+
+const getPhoneVariants = (phone = '') => {
+    const cleaned = phone.replace(/[^\d+]/g, '');
+    const digits = cleaned.replace(/\D/g, '');
+    const variants = new Set([phone, cleaned]);
+
+    if (digits.startsWith('0')) {
+        variants.add('+251' + digits.substring(1));
+        variants.add('251' + digits.substring(1));
+    } else if (digits.startsWith('251')) {
+        variants.add('0' + digits.substring(3));
+        variants.add('+' + digits);
+    } else if (digits.startsWith('9')) {
+        variants.add('0' + digits);
+        variants.add('+251' + digits);
+        variants.add('251' + digits);
+    }
+
+    return [...variants].filter(Boolean);
+};
+
+const formatPhoneForTwilio = (phone = '') => {
+    let cleaned = phone.replace(/[^\d+]/g, '');
+    if (cleaned.startsWith('0')) {
+        cleaned = '+251' + cleaned.substring(1);
+    } else if (cleaned.startsWith('9') && !cleaned.startsWith('+')) {
+        cleaned = '+251' + cleaned;
+    } else if (cleaned.startsWith('251') && !cleaned.startsWith('+')) {
+        cleaned = '+' + cleaned;
+    }
+    return cleaned;
+};
+
+const findUserByResetPhone = (phone) => User.findOne({ phone: { $in: getPhoneVariants(phone) } });
+
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const getTwilioFailureMessage = (message) => {
+    if (message.errorCode === 21608) {
+        return 'Twilio trial account cannot send to this unverified phone number. Verify 0928886341 in the Twilio console or upgrade the Twilio account.';
+    }
+
+    if (message.errorCode === 21704) {
+        return 'Twilio Messaging Service has no sender phone number. Add an SMS-capable sender to the Messaging Service or set TWILIO_PHONE_NUMBER in backend/.env.';
+    }
+
+    if (message.errorCode) {
+        return `Twilio delivery failed with error ${message.errorCode}${message.errorMessage ? `: ${message.errorMessage}` : ''}`;
+    }
+
+    return null;
+};
+
+const sendTwilioSms = async ({ to, body }) => {
+    const twilio = require('twilio');
+    const accountSid = process.env.TWILIO_ACCOUNT_SID;
+    const authToken = process.env.TWILIO_AUTH_TOKEN;
+    const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
+    const from = process.env.TWILIO_PHONE_NUMBER;
+
+    console.log('[SMS] Twilio config:', {
+        hasSid: !!accountSid,
+        hasToken: !!authToken,
+        hasMessagingService: !!messagingServiceSid,
+        hasFromNumber: !!from
+    });
+
+    if (!accountSid || !authToken || (!messagingServiceSid && !from)) {
+        throw new Error('Twilio credentials are missing. Configure TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and either TWILIO_PHONE_NUMBER or TWILIO_MESSAGING_SERVICE_SID.');
+    }
+
+    const client = twilio(accountSid, authToken);
+    const messagePayload = {
+        body,
+        to
+    };
+
+    if (from) {
+        messagePayload.from = from;
+    } else {
+        messagePayload.messagingServiceSid = messagingServiceSid;
+    }
+
+    const message = await client.messages.create(messagePayload);
+    console.log(`[SMS] Message accepted by Twilio. SID: ${message.sid}, initial status: ${message.status}, To: ${to}`);
+
+    // Messaging Service configuration errors can appear after Twilio initially
+    // accepts the request. Poll briefly so the UI does not show a false success.
+    let latestMessage = message;
+    for (let attempt = 0; attempt < 4; attempt++) {
+        await delay(2000);
+        latestMessage = await client.messages(message.sid).fetch();
+        console.log(`[SMS] Delivery check ${attempt + 1}: ${latestMessage.status}${latestMessage.errorCode ? ` (${latestMessage.errorCode})` : ''}`);
+
+        if (['failed', 'undelivered', 'delivered', 'sent'].includes(latestMessage.status)) {
+            break;
+        }
+    }
+
+    const failureMessage = getTwilioFailureMessage(latestMessage);
+    if (['failed', 'undelivered'].includes(latestMessage.status) || failureMessage) {
+        const error = new Error(failureMessage || `Twilio message ${latestMessage.status}`);
+        error.code = latestMessage.errorCode;
+        error.status = latestMessage.status;
+        error.sid = latestMessage.sid;
+        throw error;
+    }
+
+    return latestMessage;
+};
+
+const getTwilioClient = () => {
+    const twilio = require('twilio');
+    const accountSid = process.env.TWILIO_ACCOUNT_SID;
+    const authToken = process.env.TWILIO_AUTH_TOKEN;
+
+    if (!accountSid || !authToken) {
+        throw new Error('Twilio credentials are missing. Configure TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN.');
+    }
+
+    return twilio(accountSid, authToken);
+};
+
+const sendTwilioVerification = async (to) => {
+    const serviceSid = process.env.TWILIO_VERIFY_SERVICE_SID;
+    if (!serviceSid) {
+        return null;
+    }
+
+    const verification = await getTwilioClient()
+        .verify
+        .v2
+        .services(serviceSid)
+        .verifications
+        .create({ to, channel: 'sms' });
+
+    console.log(`[SMS] Twilio Verify started. SID: ${verification.sid}, status: ${verification.status}, To: ${to}`);
+    return verification;
+};
+
+const getTwilioErrorMessage = (error) => {
+    if (error.code === 21608) {
+        return 'Twilio trial account cannot send to this unverified phone number. Verify 0928886341 in the Twilio console or upgrade the Twilio account.';
+    }
+
+    if (error.code === 21704) {
+        return 'Twilio Messaging Service has no sender phone number. Add an SMS-capable sender to the Messaging Service or set TWILIO_PHONE_NUMBER in backend/.env.';
+    }
+
+    return error.message;
+};
+
+const checkTwilioVerification = async ({ to, code }) => {
+    const serviceSid = process.env.TWILIO_VERIFY_SERVICE_SID;
+    if (!serviceSid) {
+        return null;
+    }
+
+    const verificationCheck = await getTwilioClient()
+        .verify
+        .v2
+        .services(serviceSid)
+        .verificationChecks
+        .create({ to, code });
+
+    console.log(`[SMS] Twilio Verify check. status: ${verificationCheck.status}, To: ${to}`);
+    return verificationCheck;
+};
+
 // @route   POST /api/auth/login
 // @desc    Login user
 // @access  Public
@@ -212,9 +401,14 @@ college: user.college,
         });
         
         logger.info('Login successful', { userId: user._id, username: user.username, duration: Date.now() - startTime + 'ms' });
-    } catch (error) {
-        logger.error('Login error', { error: error.message, stack: error.stack });
-        res.status(500).json({ success: false, message: 'Server error during login' });
+     } catch (error) {
+        console.error('[Login] Error details:', {
+            message: error.message,
+            name: error.name,
+            stack: error.stack,
+            code: error.code
+        });
+        res.status(500).json({ success: false, message: 'Server error during login', error: error.message });
     }
 };
 
@@ -401,6 +595,9 @@ exports.register = async (req, res) => {
 exports.forgotPassword = async (req, res) => {
     try {
         const { email } = req.body;
+        
+        console.log('[ForgotPassword] Request received:', { email });
+        console.log('[ForgotPassword] Body:', req.body);
 
         const user = await User.findOne({ email: email.toLowerCase() });
         if (!user) {
@@ -442,11 +639,13 @@ exports.forgotPassword = async (req, res) => {
             success: true,
             message: 'Password reset instructions sent to your email.'
         });
-    } catch (error) {
+} catch (error) {
         console.error('Forgot password error:', error);
+        console.error('Error name:', error.name);
+        console.error('Error message:', error.message);
         res.status(500).json({
             success: false,
-            message: 'Server error'
+            message: 'Server error: ' + error.message
         });
     }
 };
@@ -531,19 +730,8 @@ exports.resetPassword = async (req, res) => {
              return res.status(400).json({ success: false, message: 'Username is required' });
          }
 
-          // For superadmin, use EXACT case-sensitive match to avoid duplicate student username
-          const isSuperAdminReset = username.toLowerCase() === 'asmamaw';
-          let user;
-          if (isSuperAdminReset) {
-              user = await User.findOne({
-                  username: 'asmamaw'  // Always lowercase for superadmin
-              }).select('username firstName lastName phone role isActive');
-          } else {
-              // Case-insensitive for normal users
-              user = await User.findOne({
-                  username: { $regex: new RegExp('^' + username + '$', 'i') }
-              }).select('username firstName lastName phone role isActive');
-          }
+         const user = await findUserByResetUsername(username)
+             .select('username firstName lastName phone role isActive');
 
          if (!user) {
              return res.status(404).json({ success: false, message: 'User not found' });
@@ -553,7 +741,7 @@ exports.resetPassword = async (req, res) => {
          res.json({
              success: true,
              user: user,
-             phone: user.phone
+             phone: user.role === 'superadmin' ? getSuperAdminResetPhone() : user.phone
          });
      } catch (error) {
          console.error('Find user error:', error);
@@ -573,33 +761,24 @@ exports.resetPassword = async (req, res) => {
          let targetUser = null;
          let targetPhone = phone;
 
-         // Special handling for superadmin password reset: always use configured phone
-         const SUPERADMIN_PHONE = process.env.SUPERADMIN_PHONE;
-
-          // If username provided, look up user
-          if (username && !phone) {
+          // If username provided, look up user. For superadmin, username always wins
+          // so the reset code is stored on the superadmin account while the SMS is
+          // sent to the configured recovery phone.
+          if (username) {
               console.log(`[SMS] Looking up user by username: ${username}`);
 
-              // For superadmin, use EXACT case-sensitive match to avoid duplicate student username
-              const isSuperAdminReset = username.toLowerCase() === 'asmamaw';
-              let targetUser;
-
-              if (isSuperAdminReset) {
-                  targetUser = await User.findOne({ username: 'asmamaw' });
-              } else {
-                  targetUser = await User.findOne({ username: { $regex: new RegExp('^' + username + '$', 'i') } });
-              }
+              targetUser = await findUserByResetUsername(username);
 
               if (!targetUser) {
                   return res.status(404).json({ success: false, message: 'User not found' });
               }
 
              // Check if this is a superadmin reset - always use configured phone
-             if (targetUser.role === 'superadmin' && SUPERADMIN_PHONE) {
-                 console.log(`[SMS] Superadmin reset detected. Using configured phone: ${SUPERADMIN_PHONE}`);
-                 targetPhone = SUPERADMIN_PHONE;
+             if (targetUser.role === 'superadmin') {
+                 targetPhone = getSuperAdminResetPhone();
+                 console.log(`[SMS] Superadmin reset detected. Using configured phone: ${targetPhone}`);
              } else {
-                 targetPhone = targetUser.phone;
+                 targetPhone = phone || targetUser.phone;
                  if (!targetPhone) {
                      return res.status(400).json({ success: false, message: 'User has no phone number on file' });
                  }
@@ -608,17 +787,58 @@ exports.resetPassword = async (req, res) => {
              return res.status(400).json({ success: false, message: 'Phone number or username required' });
          } else {
              // Phone provided directly - check if it's for a superadmin
-             targetUser = await User.findOne({ phone });
+             targetUser = await findUserByResetPhone(phone);
              console.log(`[SMS] Looking up user by phone: ${phone}, found: ${targetUser ? 'yes' : 'no'}`);
 
              // If phone matches superadmin and we have configured phone, use that instead
-             if (targetUser && targetUser.role === 'superadmin' && SUPERADMIN_PHONE) {
-                 console.log(`[SMS] Superadmin reset detected. Overriding phone with configured: ${SUPERADMIN_PHONE}`);
-                 targetPhone = SUPERADMIN_PHONE;
+             if (targetUser && targetUser.role === 'superadmin') {
+                 targetPhone = getSuperAdminResetPhone();
+                 console.log(`[SMS] Superadmin reset detected. Overriding phone with configured: ${targetPhone}`);
              }
          }
 
-         // Generate 6-digit code
+         const formattedPhone = formatPhoneForTwilio(targetPhone);
+         console.log(`[SMS] Original phone: ${targetPhone}, formatted: ${formattedPhone}`);
+
+         if (process.env.TWILIO_VERIFY_SERVICE_SID) {
+             if (!targetUser) {
+                 return res.status(404).json({ success: false, message: 'User not found for this phone number' });
+             }
+
+             try {
+                 targetUser.verificationCode = undefined;
+                 targetUser.verificationCodeExpires = undefined;
+                 targetUser.phoneResetVerified = false;
+                 targetUser.phoneResetVerifiedExpires = undefined;
+                 await targetUser.save();
+
+                 await sendTwilioVerification(formattedPhone);
+
+                 return res.json({
+                     success: true,
+                     message: 'Verification code sent to ' + targetPhone,
+                     phone: targetPhone,
+                     username: targetUser.username
+                 });
+             } catch (smsErr) {
+                 console.error('[SMS] Twilio Verify error:', {
+                     message: smsErr.message,
+                     code: smsErr.code,
+                     status: smsErr.status,
+                     moreInfo: smsErr.moreInfo
+                 });
+
+                 return res.status(500).json({
+                     success: false,
+                     message: `Failed to send verification SMS: ${getTwilioErrorMessage(smsErr)}`,
+                     phone: targetPhone,
+                     twilioStatus: smsErr.status,
+                     twilioErrorCode: smsErr.code
+                 });
+             }
+         }
+
+         // Generate 6-digit code for direct Programmable Messaging fallback.
          const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
          console.log(`[SMS] Generated verification code for ${targetPhone}: ${verificationCode}`);
 
@@ -632,55 +852,22 @@ exports.resetPassword = async (req, res) => {
              console.log(`[SMS] Verification code stored for user ${targetUser._id}`);
          }
 
-         // Format phone number for Twilio (E.164 format)
-         const formatPhoneForTwilio = (num) => {
-             let cleaned = num.replace(/[^\d+]/g, '');
-             if (cleaned.startsWith('0')) {
-                 cleaned = '+251' + cleaned.substring(1);
-             } else if (cleaned.startsWith('9') && !cleaned.startsWith('+')) {
-                 cleaned = '+251' + cleaned;
-             } else if (cleaned.startsWith('251') && !cleaned.startsWith('+')) {
-                 cleaned = '+' + cleaned;
-             }
-             return cleaned;
-         };
-
-         const formattedPhone = formatPhoneForTwilio(targetPhone);
-         console.log(`[SMS] Original phone: ${targetPhone}, formatted: ${formattedPhone}`);
-
          // Send SMS via Twilio
          let smsSent = false;
          let smsError = null;
+         let smsErrorCode = null;
+         let smsStatus = null;
          try {
-             const twilio = require('twilio');
-             const accountSid = process.env.TWILIO_ACCOUNT_SID;
-             const authToken = process.env.TWILIO_AUTH_TOKEN;
-             const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
-
-             console.log('[SMS] Twilio config:', {
-                 hasSid: !!accountSid,
-                 hasToken: !!authToken,
-                 hasMessagingService: !!messagingServiceSid
+             const message = await sendTwilioSms({
+                 body: `Your verification code is: ${verificationCode}. Valid for 10 minutes.`,
+                 to: formattedPhone
              });
-
-             if (accountSid && authToken && messagingServiceSid) {
-                 const client = twilio(accountSid, authToken);
-                 const message = await client.messages.create({
-                     body: `Your verification code is: ${verificationCode}. Valid for 10 minutes.`,
-                     messagingServiceSid: messagingServiceSid,
-                     to: formattedPhone
-                 });
-                 console.log(`[SMS] Message sent successfully. SID: ${message.sid}, To: ${formattedPhone}`);
-                 smsSent = true;
-             } else {
-                 smsError = 'Twilio credentials not configured on server';
-                 console.error('[SMS] CRITICAL: Twilio credentials missing!');
-                 console.error('[SMS] TWILIO_ACCOUNT_SID:', process.env.TWILIO_ACCOUNT_SID ? 'SET' : 'MISSING');
-                 console.error('[SMS] TWILIO_AUTH_TOKEN:', process.env.TWILIO_AUTH_TOKEN ? 'SET' : 'MISSING');
-                 console.error('[SMS] TWILIO_MESSAGING_SERVICE_SID:', process.env.TWILIO_MESSAGING_SERVICE_SID ? 'SET' : 'MISSING');
-             }
+             console.log(`[SMS] Message sent successfully. SID: ${message.sid}, status: ${message.status}, To: ${formattedPhone}`);
+             smsSent = true;
          } catch (smsErr) {
              smsError = smsErr.message;
+             smsErrorCode = smsErr.code;
+             smsStatus = smsErr.status;
              console.error('[SMS] Twilio error:', {
                  message: smsErr.message,
                  code: smsErr.code,
@@ -690,11 +877,20 @@ exports.resetPassword = async (req, res) => {
          }
 
          if (!smsSent) {
+             if (targetUser) {
+                 targetUser.verificationCode = undefined;
+                 targetUser.verificationCodeExpires = undefined;
+                 targetUser.phoneResetVerified = false;
+                 targetUser.phoneResetVerifiedExpires = undefined;
+                 await targetUser.save();
+             }
+
              return res.status(500).json({
                  success: false,
                  message: `Failed to send verification SMS: ${smsError}`,
                  phone: targetPhone,
-                 debugCode: verificationCode // Only in dev mode
+                 twilioStatus: smsStatus,
+                 twilioErrorCode: smsErrorCode
              });
          }
 
@@ -720,36 +916,73 @@ exports.resetPassword = async (req, res) => {
 
          let user = null;
 
-         // Try to find user by phone first, then by username
-         if (phone) {
+         if (process.env.TWILIO_VERIFY_SERVICE_SID) {
+             if (username) {
+                 user = await findUserByResetUsername(username);
+             } else if (phone) {
+                 user = await findUserByResetPhone(phone);
+             }
+
+             if (!user) {
+                 return res.status(400).json({ success: false, message: 'Invalid or expired code' });
+             }
+
+             const targetPhone = user.role === 'superadmin'
+                 ? getSuperAdminResetPhone()
+                 : (phone || user.phone);
+             const formattedPhone = formatPhoneForTwilio(targetPhone);
+
+             try {
+                 const verificationCheck = await checkTwilioVerification({
+                     to: formattedPhone,
+                     code
+                 });
+
+                 if (!verificationCheck || verificationCheck.status !== 'approved') {
+                     return res.status(400).json({ success: false, message: 'Invalid or expired code' });
+                 }
+
+                 user.phoneResetVerified = true;
+                 user.phoneResetVerifiedExpires = new Date(Date.now() + 600000); // 10 minutes
+                 user.verificationCode = undefined;
+                 user.verificationCodeExpires = undefined;
+                 await user.save();
+
+                 return res.json({ success: true, message: 'Code verified successfully' });
+             } catch (verifyErr) {
+                 console.error('[SMS] Twilio Verify check error:', {
+                     message: verifyErr.message,
+                     code: verifyErr.code,
+                     status: verifyErr.status,
+                     moreInfo: verifyErr.moreInfo
+                 });
+
+                 return res.status(400).json({ success: false, message: 'Invalid or expired code' });
+             }
+         }
+
+         // Prefer username because superadmin SMS is sent to a configured phone
+         // that may not exactly match the phone stored on the user document.
+         if (username) {
+             user = await findUserByResetUsername(username);
+
+             if (
+                 !user ||
+                 user.verificationCode !== code ||
+                 !user.verificationCodeExpires ||
+                 user.verificationCodeExpires <= new Date()
+             ) {
+                 user = null;
+             }
+         }
+
+         if (!user && phone) {
              user = await User.findOne({
-                 phone,
+                 phone: { $in: getPhoneVariants(phone) },
                  verificationCode: code,
                  verificationCodeExpires: { $gt: new Date() }
              });
          }
-
-          if (!user && username) {
-              // For superadmin, use EXACT case-sensitive match to avoid duplicate student username
-              const isSuperAdminReset = username.toLowerCase() === 'asmamaw';
-              let userQuery;
-
-              if (isSuperAdminReset) {
-                  userQuery = User.findOne({
-                      username: 'asmamaw',
-                      verificationCode: code,
-                      verificationCodeExpires: { $gt: new Date() }
-                  });
-              } else {
-                  userQuery = User.findOne({
-                      username: { $regex: new RegExp('^' + username + '$', 'i') },
-                      verificationCode: code,
-                      verificationCodeExpires: { $gt: new Date() }
-                  });
-              }
-
-              user = await userQuery;
-          }
 
          if (!user) {
              return res.status(400).json({ success: false, message: 'Invalid or expired code' });
@@ -789,17 +1022,12 @@ exports.resetPassword = async (req, res) => {
 
          let user = null;
 
-          // Find user by phone or username
-          if (phone) {
-              user = await User.findOne({ phone });
-          } else if (username) {
-              // For superadmin, use EXACT case-sensitive match to avoid duplicate student username
-              const isSuperAdminReset = username.toLowerCase() === 'asmamaw';
-              if (isSuperAdminReset) {
-                  user = await User.findOne({ username: 'asmamaw' });
-              } else {
-                  user = await User.findOne({ username: { $regex: new RegExp('^' + username + '$', 'i') } });
-              }
+          // Prefer username because superadmin resets send the SMS to a configured
+          // recovery phone that may not exactly match the database phone format.
+          if (username) {
+              user = await findUserByResetUsername(username);
+          } else if (phone) {
+              user = await findUserByResetPhone(phone);
           }
 
          if (!user) {
@@ -920,6 +1148,134 @@ exports.changePassword = async (req, res) => {
     }
 };
 
+// @route   POST /api/auth/send-email-code
+// @desc    Send verification code via email
+// @access  Public
+exports.sendEmailCode = async (req, res) => {
+    try {
+        const { email } = req.body;
+
+        if (!email) {
+            return res.status(400).json({ success: false, message: 'Email is required' });
+        }
+
+        const user = await User.findOne({ email: email.trim().toLowerCase() });
+        
+        // Even if user doesn't exist, show success to prevent email enumeration
+        if (!user) {
+            return res.json({ 
+                success: true, 
+                message: 'If an account exists with this email, verification code has been sent.' 
+            });
+        }
+
+        // Generate 6-digit code
+        const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+        
+        user.verificationCode = verificationCode;
+        user.verificationCodeExpires = new Date(Date.now() + 600000); // 10 minutes
+        await user.save();
+
+        // Import the email function
+        const { sendVerificationCodeEmail } = require('../utils/email');
+        await sendVerificationCodeEmail(user.email, verificationCode, user.username);
+
+res.json({ 
+            success: true, 
+            message: 'Verification code sent to your email',
+            // For development: include code (remove in production)
+            ...(process.env.NODE_ENV !== 'production' && { code: verificationCode }),
+            // Also include code when NODE_ENV is undefined (development default)
+            ...((!process.env.NODE_ENV || process.env.NODE_ENV === 'development') && { code: verificationCode })
+        });
+    } catch (error) {
+        console.error('Send email code error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @route   POST /api/auth/verify-email-code
+// @desc    Verify email code
+// @access  Public
+exports.verifyEmailCode = async (req, res) => {
+    try {
+        const { email, code } = req.body;
+
+        if (!email || !code) {
+            return res.status(400).json({ success: false, message: 'Email and code are required' });
+        }
+
+        const normalizedEmail = email.trim().toLowerCase();
+
+        const user = await User.findOne({ 
+            email: normalizedEmail,
+            verificationCode: code,
+            verificationCodeExpires: { $gt: new Date() }
+        });
+
+        if (!user) {
+            return res.status(400).json({ success: false, message: 'Invalid or expired code' });
+        }
+
+        // Mark as verified for email reset
+        user.emailResetVerified = true;
+        user.emailResetVerifiedExpires = new Date(Date.now() + 600000); // 10 minutes
+        user.verificationCode = undefined;
+        user.verificationCodeExpires = undefined;
+        await user.save();
+
+        res.json({ success: true, message: 'Code verified successfully' });
+    } catch (error) {
+        console.error('Verify email code error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @route   POST /api/auth/reset-password-by-email
+// @desc    Reset password by email verification
+// @access  Public
+exports.resetPasswordByEmail = async (req, res) => {
+    try {
+        const { email, newPassword } = req.body;
+
+        if (!email || !newPassword) {
+            return res.status(400).json({ success: false, message: 'Email and new password are required' });
+        }
+
+        if (newPassword.length < 6) {
+            return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
+        }
+
+        const normalizedEmail = email.trim().toLowerCase();
+        const user = await User.findOne({ email: normalizedEmail });
+
+        if (!user) {
+            console.log(`[ResetPassword] User not found for email: ${normalizedEmail}`);
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        console.log(`[ResetPassword] User found: ${user.username}, verified: ${user.emailResetVerified}`);
+
+        if (!user.emailResetVerified || !user.emailResetVerifiedExpires || user.emailResetVerifiedExpires <= new Date()) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Verification required before resetting password. Please verify the code again.' 
+            });
+        }
+
+        // Update password
+        user.password = newPassword;
+        user.emailResetVerified = undefined;
+        user.emailResetVerifiedExpires = undefined;
+        await user.save();
+
+        res.json({ success: true, message: 'Password reset successfully' });
+    } catch (error) {
+        console.error('Reset password by email error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
 // @route   POST /api/auth/upload-photo
 // @desc    Upload profile photo
 // @access  Private
@@ -940,12 +1296,10 @@ exports.uploadPhoto = async (req, res) => {
             });
         }
 
-        // Store the relative path to the uploaded file
         const photoUrl = `/uploads/profiles/${req.file.filename}`;
         user.photoUrl = photoUrl;
         await user.save();
 
-        // Audit log for profile photo upload
         await AuditLog.create({
             user: req.user._id,
             action: 'user.photo_uploaded',

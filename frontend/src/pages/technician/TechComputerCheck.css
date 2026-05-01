@@ -129,6 +129,13 @@
   color: white;
 }
 
+.computer-updated-by {
+  font-size: 0.65rem;
+  color: #64748b;
+  margin-top: 0.25rem;
+  font-style: italic;
+}
+
 .computer-actions {
   display: flex;
   flex-wrap: wrap;

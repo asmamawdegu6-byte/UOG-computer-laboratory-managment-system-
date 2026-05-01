@@ -182,6 +182,33 @@ const TechnicianDashboard = () => {
                     <p className="welcome-text" style={{ color: campusStyle.accent }}>Manage maintenance, equipment, and lab operations</p>
                 </div>
 
+                {/* Inventory Management Quick Actions */}
+                <Card title="Inventory Management" className="actions-card inventory-actions-card">
+                    <div className="quick-actions-grid">
+                        <div className="action-card" onClick={() => navigate('/technician/inventory')}>
+                            <div className="action-icon">📦</div>
+                            <div className="action-content">
+                                <div className="action-title">View All Inventory</div>
+                                <div className="action-description">Browse and manage all hardware records</div>
+                            </div>
+                        </div>
+                        <div className="action-card" onClick={() => navigate('/technician/inventory', { state: { openAddForm: true } })}>
+                            <div className="action-icon">➕</div>
+                            <div className="action-content">
+                                <div className="action-title">Add New Item</div>
+                                <div className="action-description">Register new hardware to the inventory</div>
+                            </div>
+                        </div>
+                        <div className="action-card" onClick={() => navigate('/technician/inventory')}>
+                            <div className="action-icon">⇩</div>
+                            <div className="action-content">
+                                <div className="action-title">Direct Export</div>
+                                <div className="action-description">Download CSV or PDF from the inventory view</div>
+                            </div>
+                        </div>
+                    </div>
+                </Card>
+
                 {loading ? (
                     <div className="loading">Loading dashboard data...</div>
                 ) : (
@@ -290,6 +317,14 @@ const TechnicianDashboard = () => {
                                         <div className="action-title">View Schedule</div>
                                         <div className="action-description">View lab class schedule</div>
                                         <div className="action-badge">{todaySchedule.length} sessions</div>
+                                    </div>
+                                </div>
+                                <div className="action-card large" onClick={() => navigate('/technician/export-data')}>
+                                    <div className="action-icon">⇩</div>
+                                    <div className="action-content">
+                                        <div className="action-title">Export Data</div>
+                                        <div className="action-description">Send export data request to admin and super admin</div>
+                                        <div className="action-badge">Form</div>
                                     </div>
                                 </div>
                                 <div className="action-card large" onClick={() => navigate('/technician/fault-report')}>

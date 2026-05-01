@@ -181,6 +181,100 @@ exports.sendNotification = async (req, res) => {
     }
 };
 
+// @route   POST /api/notifications/export-data
+// @desc    Submit a technician export data request to admins and superadmins
+// @access  Technician
+exports.submitExportDataRequest = async (req, res) => {
+    try {
+        const {
+            title,
+            category,
+            labName,
+            dateRange,
+            format,
+            summary,
+            details,
+            includeSchedule,
+            includeComputerStatus,
+            includeInventory,
+            includeMaintenance
+        } = req.body;
+
+        if (!title || !summary) {
+            return res.status(400).json({
+                success: false,
+                message: 'Title and summary are required'
+            });
+        }
+
+        const campus = req.user.campus || req.user.campusCode;
+        const adminQuery = campus
+            ? { role: 'admin', campus, isActive: true }
+            : { role: 'admin', isActive: true };
+
+        const recipients = await User.find({
+            isActive: true,
+            $or: [
+                adminQuery,
+                { role: 'superadmin' }
+            ]
+        }).select('_id role');
+
+        if (recipients.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'No active admin or superadmin recipients found'
+            });
+        }
+
+        const includedData = [
+            includeSchedule ? 'schedule' : null,
+            includeComputerStatus ? 'computer status' : null,
+            includeInventory ? 'inventory' : null,
+            includeMaintenance ? 'maintenance' : null
+        ].filter(Boolean);
+
+        const requestMetadata = {
+            category: category || 'general',
+            labName: labName || '',
+            campus: campus || '',
+            dateRange: dateRange || '',
+            format: format || 'pdf',
+            summary,
+            details: details || '',
+            includedData,
+            requestedBy: {
+                id: req.user._id,
+                name: req.user.name || req.user.username,
+                role: req.user.role
+            }
+        };
+
+        const notifications = recipients.map(recipient => ({
+            recipient: recipient._id,
+            sender: req.user._id,
+            type: 'report',
+            title: `Export data request: ${title}`,
+            message: `${req.user.name || req.user.username} requested ${format || 'PDF'} export data${labName ? ` for ${labName}` : ''}. ${summary}`,
+            link: '/admin/reports',
+            priority: 'high',
+            relatedModel: 'Report',
+            metadata: requestMetadata
+        }));
+
+        await Notification.insertMany(notifications);
+
+        res.status(201).json({
+            success: true,
+            message: `Export data request sent to ${recipients.length} admin recipient(s)`,
+            count: recipients.length
+        });
+    } catch (error) {
+        console.error('Submit export data request error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
 // Helper function to create notifications (used by other controllers)
 exports.createNotification = async (data) => {
     try {

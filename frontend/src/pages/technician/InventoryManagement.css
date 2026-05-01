@@ -11,6 +11,11 @@
     margin-bottom: 1.5rem;
 }
 
+.inventory-top-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
 .page-header h1 {
     font-size: 1.875rem;
     font-weight: 700;
@@ -195,14 +200,62 @@
     color: #374151;
 }
 
-.sheet-delete-btn {
-    border: none;
-    background: #fee2e2;
-    color: #991b1b;
-    padding: 0.45rem 0.75rem;
-    border-radius: 0.55rem;
+/* Action Buttons in Sheet */
+.sheet-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+/* Detail View Modal Styles */
+.detail-view {
+    padding: 0.5rem 0;
+}
+
+.detail-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.25rem;
+    margin-bottom: 1.5rem;
+}
+
+.detail-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.detail-item strong {
+    color: #64748b;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.detail-item span {
     font-weight: 600;
-    cursor: pointer;
+    color: #1e293b;
+    font-size: 0.95rem;
+}
+
+.detail-notes {
+    border-top: 1px solid #e2e8f0;
+    padding-top: 1rem;
+}
+
+.detail-notes strong {
+    display: block;
+    color: #64748b;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    margin-bottom: 0.5rem;
+}
+
+.detail-notes p {
+    color: #475569;
+    line-height: 1.6;
+    margin: 0;
+    font-size: 0.9rem;
 }
 
 @media (max-width: 900px) {

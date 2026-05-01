@@ -16,7 +16,7 @@ router.get('/', authenticate, reservationController.getAllReservations);
 router.get('/active-sessions', authenticate, reservationController.getActiveSessions);
 router.get('/check-availability', authenticate, reservationController.checkAvailability);
 router.get('/my-reservations', authenticate, authorize('teacher', 'admin', 'superadmin'), reservationController.getMyReservations);
-router.get('/timetable', authenticate, authorize('teacher', 'admin', 'superadmin'), reservationController.getTimetable);
+router.get('/timetable', authenticate, authorize('teacher', 'admin', 'superadmin', 'technician'), reservationController.getTimetable);
 
 router.post('/', authenticate, authorize('teacher', 'admin', 'superadmin'), [
     body('labId').notEmpty(),

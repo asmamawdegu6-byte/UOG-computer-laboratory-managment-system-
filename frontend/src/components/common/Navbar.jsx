@@ -10,6 +10,7 @@ const Navbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [showAlert, setShowAlert] = useState(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const isActive = (path) => location.pathname === path ? 'active' : '';
 
@@ -44,7 +45,15 @@ const Navbar = () => {
     { path: '/campuses', label: 'Campuses' }
   ];
 
-  return (
+  const toggleMobileMenu = () => {
+    setMobileMenuOpen(!mobileMenuOpen);
+  };
+
+  const closeMobileMenu = () => {
+    setMobileMenuOpen(false);
+  };
+
+   return (
     <nav className="navbar">
       <div className="navbar-brand">
         <Link to="/">
@@ -57,13 +66,21 @@ const Navbar = () => {
           </div>
         </Link>
       </div>
-      <div className="navbar-menu">
+
+      {/* Mobile Menu Toggle Button */}
+      <button className="navbar-mobile-toggle" onClick={toggleMobileMenu} aria-label="Toggle menu">
+        <span className="hamburger-line"></span>
+        <span className="hamburger-line"></span>
+        <span className="hamburger-line"></span>
+      </button>
+
+      <div className={`navbar-menu ${mobileMenuOpen ? 'active' : ''}`}>
         {user ? (
           <>
             <NotificationBell />
 
             {/* Profile Link */}
-            <Link to="/profile" className="navbar-profile-link">
+            <Link to="/profile" className="navbar-profile-link" onClick={closeMobileMenu}>
               <div className="navbar-avatar">
                 {user.name?.charAt(0)?.toUpperCase() || 'U'}
               </div>
@@ -82,12 +99,13 @@ const Navbar = () => {
                 to={item.path} 
                 key={item.path}
                 className={`navbar-nav-link ${isActive(item.path)}`}
+                onClick={closeMobileMenu}
               >
                 {item.label}
               </Link>
             ))}
             {/* Login Link */}
-            <Link to="/login" className="navbar-login">Login</Link>
+            <Link to="/login" className="navbar-login" onClick={closeMobileMenu}>Login</Link>
           </>
         )}
       </div>

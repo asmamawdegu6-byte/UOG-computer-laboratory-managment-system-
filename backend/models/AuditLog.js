@@ -4,14 +4,14 @@ const auditLogSchema = new mongoose.Schema({
     user: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true
+        required: false  // Made optional for auth actions that happen before user is identified
     },
     action: {
         type: String,
         required: true,
         enum: [
             'user.login', 'user.logout', 'user.register', 'user.create', 'user.update',
-            'user.delete', 'user.approve', 'user.reject', 'user.role_change',
+            'user.delete', 'user.approve', 'user.reject', 'user.role_change', 'user.password_reset_admin',
             'lab.create', 'lab.update', 'lab.delete',
             'booking.create', 'booking.update', 'booking.cancel', 'booking.status_change',
             'reservation.create', 'reservation.approve', 'reservation.reject', 'reservation.cancel',
@@ -19,7 +19,11 @@ const auditLogSchema = new mongoose.Schema({
             'equipment.create', 'equipment.update', 'equipment.delete', 'equipment.operation',
             'campus.create', 'campus.update', 'campus.delete',
             'config.update', 'material.upload', 'material.delete',
-            'attendance.mark', 'system.backup', 'system.maintenance'
+            'attendance.mark', 'system.backup', 'system.maintenance',
+            // Auth actions
+            'auth.login', 'auth.logout', 'auth.register', 'auth.failed_login',
+            'auth.password_reset_requested', 'auth.password_reset_failed', 'auth.password_reset_completed',
+            'auth.pending_account', 'auth.rejected_account', 'auth.inactive_account'
         ]
     },
     resource: {

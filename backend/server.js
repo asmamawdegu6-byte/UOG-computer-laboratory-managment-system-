@@ -501,8 +501,10 @@ app.post('/api/logs/client-error', (req, res) => {
     const logEntry = `[${timestamp || new Date().toISOString()}] [CLIENT-${level}] ${message} | ${JSON.stringify(meta)}\n`;
     
     const fs = require('fs');
-    const logPath = path.join(__dirname, 'logs', 'client-error.log');
+    const logDir = path.join(__dirname, 'logs');
+    const logPath = path.join(logDir, 'client-error.log');
     
+    fs.mkdirSync(logDir, { recursive: true });
     fs.appendFileSync(logPath, logEntry);
     res.json({ success: true });
 });

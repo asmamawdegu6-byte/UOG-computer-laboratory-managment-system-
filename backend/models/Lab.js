@@ -7,8 +7,20 @@ const workstationSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['available', 'occupied', 'maintenance', 'reserved'],
+        enum: ['available', 'occupied', 'maintenance', 'reserved', 'broken'],
         default: 'available'
+    },
+    notes: {
+        type: String,
+        trim: true
+    },
+    lastUpdatedBy: {
+        type: String,
+        default: null
+    },
+    lastUpdatedAt: {
+        type: Date,
+        default: null
     },
     specifications: {
         cpu: String,

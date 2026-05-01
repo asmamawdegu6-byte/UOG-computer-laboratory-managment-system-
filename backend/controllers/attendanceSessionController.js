@@ -19,23 +19,6 @@ const buildSessionStartDate = (session) => {
     return null;
 };
 
-const getStoredAttendanceStatus = (requestedStatus, session) => {
-    if (requestedStatus === 'absent') {
-        return null;
-    }
-
-    if (requestedStatus === 'late') {
-        return 'late';
-    }
-
-    const sessionStart = buildSessionStartDate(session);
-    if (sessionStart && new Date() > sessionStart) {
-        return 'late';
-    }
-
-    return 'present';
-};
-
 // Create a new attendance session
 exports.createSession = async (req, res) => {
     try {
@@ -47,8 +30,8 @@ exports.createSession = async (req, res) => {
             department,
             courseCode,
             campus,
-            teacher: req.user._id,
             reservation: reservationId,
+            teacher: req.user._id,
             status: 'generated'
         });
 
@@ -259,7 +242,15 @@ exports.markStudentAttendance = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Student account is deactivated' });
         }
 
-        const storedStatus = getStoredAttendanceStatus(status, session);
+        // Logic for marking status
+        let storedStatus = status;
+        if (status === 'present' && session.startedAt) {
+            const now = new Date();
+            const startTime = new Date(session.startedAt);
+            const diffMins = (now - startTime) / (1000 * 60);
+            // Auto-mark as late if more than 15 mins after session start
+            if (diffMins > 15) storedStatus = 'late';
+        }
 
         // Check if attendance already exists
         let attendance = await Attendance.findOne({
@@ -267,7 +258,7 @@ exports.markStudentAttendance = async (req, res) => {
             student: student._id
         });
 
-        if (!storedStatus) {
+        if (status === 'absent') {
             if (attendance) {
                 await Attendance.deleteOne({ _id: attendance._id });
             }
@@ -290,7 +281,7 @@ exports.markStudentAttendance = async (req, res) => {
             // Create new attendance - include both session AND reservation for proper tracking
             attendance = new Attendance({
                 session: sessionId,
-                reservation: session.reservation,
+                reservation: session.reservation?._id || session.reservation || null,
                 student: student._id,
                 status: storedStatus,
                 checkInTime: new Date(),
@@ -306,7 +297,7 @@ exports.markStudentAttendance = async (req, res) => {
             status: storedStatus
         });
     } catch (error) {
-        console.error('Mark attendance error:', error);
-        res.status(500).json({ success: false, message: 'Server error' });
+        console.error('Mark manual session attendance error:', error);
+        res.status(500).json({ success: false, message: error.message || 'Server error' });
     }
 };

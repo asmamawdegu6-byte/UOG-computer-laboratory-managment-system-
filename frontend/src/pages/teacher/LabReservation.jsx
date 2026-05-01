@@ -463,14 +463,33 @@ const LabReservation = () => {
                     />
                   </div>
                 </div>
-                <div className="form-row">
+<div className="form-row">
                   <div className="form-group">
-                    <label>Semester</label>
-                    <select name="semester" value={formData.semester} onChange={handleChange}>
+                    <label>Year *</label>
+                    <select name="year" value={formData.year} onChange={handleChange} required>
+                      <option value="">Select Year</option>
+                      <option value="1">1st Year</option>
+                      <option value="2">2nd Year</option>
+                      <option value="3">3rd Year</option>
+                      <option value="4">4th Year</option>
+                      <option value="5">5th Year</option>
+                      <option value="6">6th Year</option>
+                      <option value="7">7th Year</option>
+                      <option value="8">8th Year</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Semester *</label>
+                    <select name="semester" value={formData.semester} onChange={handleChange} required>
                       <option value="">Select Semester</option>
-                      <option value="Fall">Fall</option>
-                      <option value="Spring">Spring</option>
-                      <option value="Summer">Summer</option>
+                      <option value="1">Semester 1</option>
+                      <option value="2">Semester 2</option>
+                      <option value="3">Semester 3</option>
+                      <option value="4">Semester 4</option>
+                      <option value="5">Semester 5</option>
+                      <option value="6">Semester 6</option>
+                      <option value="7">Semester 7</option>
+                      <option value="8">Semester 8</option>
                     </select>
                   </div>
                   <div className="form-group">
@@ -483,14 +502,21 @@ const LabReservation = () => {
                       <option value="2026/2027">2026/2027</option>
                     </select>
                   </div>
+                </div>
+                <div className="form-row">
                   <div className="form-group">
-                    <label>Year</label>
-                    <select name="year" value={formData.year} onChange={handleChange}>
-                      <option value="">Select Year</option>
-                      <option value="1">1st Year</option>
-                      <option value="2">2nd Year</option>
-                      <option value="3">3rd Year</option>
-                      <option value="4">4th Year</option>
+                    <label>Department *</label>
+                    <select name="program" value={formData.program} onChange={handleChange} required>
+                      <option value="">Select Department</option>
+                      <option value="Computer Science">Computer Science</option>
+                      <option value="Information Technology">Information Technology</option>
+                      <option value="Software Engineering">Software Engineering</option>
+                      <option value="Electrical Engineering">Electrical Engineering</option>
+                      <option value="Mechanical Engineering">Mechanical Engineering</option>
+                      <option value="Civil Engineering">Civil Engineering</option>
+                      <option value="Veterinary Medicine">Veterinary Medicine</option>
+                      <option value="Business Administration">Business Administration</option>
+                      <option value="Economics">Economics</option>
                     </select>
                   </div>
                   <div className="form-group">
@@ -501,16 +527,6 @@ const LabReservation = () => {
                       value={formData.section}
                       onChange={handleChange}
                       placeholder="e.g. A, B"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Program</label>
-                    <input
-                      type="text"
-                      name="program"
-                      value={formData.program}
-                      onChange={handleChange}
-                      placeholder="e.g. Computer Science"
                     />
                   </div>
                 </div>

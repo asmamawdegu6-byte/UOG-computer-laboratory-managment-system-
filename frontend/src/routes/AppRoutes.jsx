@@ -25,6 +25,7 @@ import CampusLogin from '../pages/public/CampusLogin';
 import Login from '../pages/auth/Login';
 import Register from '../pages/auth/Register';
 import ForgotPassword from '../pages/auth/ForgotPassword';
+import EmailForgotPassword from '../pages/auth/EmailForgotPassword';
 import PreLoginReset from '../pages/auth/PreLoginReset';
 
 // Student Pages
@@ -59,6 +60,7 @@ import TechViewAvailability from '../pages/technician/TechViewAvailability';
 import TechViewSchedule from '../pages/technician/TechViewSchedule';
 import TechComputerCheck from '../pages/technician/TechComputerCheck';
 import TechnicianManageBooking from '../pages/technician/TechnicianManageBooking';
+import ExportData from '../pages/technician/ExportData';
 
 
 // Admin Pages
@@ -122,7 +124,8 @@ const AppRoutes = () => {
       <Route element={<AuthLayout />}>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
+<Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/forgot-password-email" element={<EmailForgotPassword />} />
         <Route path="/reset-password" element={<PreLoginReset />} />
       </Route>
 
@@ -168,6 +171,7 @@ const AppRoutes = () => {
         <Route path="/technician/schedule" element={<TechViewSchedule />} />
         <Route path="/technician/manage-booking" element={<TechnicianManageBooking />} />
         <Route path="/technician/computer-check" element={<TechComputerCheck />} />
+        <Route path="/technician/export-data" element={<ExportData />} />
       </Route>
 
       {/* Admin Routes */}

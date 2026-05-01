@@ -2,8 +2,23 @@ import React, { useEffect, useMemo, useState } from 'react';
 import DashboardLayout from '../../components/layout/DashboardLayout';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
+import Modal from '../../components/ui/Modal';
 import api from '../../services/api';
+import { useLocation, useNavigate } from 'react-router-dom';
 import './InventoryManagement.css';
+
+const initialForm = {
+    serialNumber: '',
+    computerTag: '',
+    processor: '',
+    storage: '',
+    ram: '',
+    labId: '',
+    location: '',
+    status: 'operational',
+    owner: '',
+    notes: ''
+};
 
 const statusLabels = {
     operational: 'Operational',
@@ -14,30 +29,32 @@ const statusLabels = {
 };
 
 const InventoryManagement = () => {
+    const navigate = useNavigate();
     const [inventory, setInventory] = useState([]);
     const [labs, setLabs] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false); // Set to false initially, as fetchData will set it to true
     const [error, setError] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
     const [showForm, setShowForm] = useState(false);
+    const [isEditMode, setIsEditMode] = useState(false);
+    const [exporting, setExporting] = useState(false);
+    const [editingItem, setEditingItem] = useState(null);
+    const [viewingItem, setViewingItem] = useState(null);
+
     const [searchTerm, setSearchTerm] = useState('');
-    const [formData, setFormData] = useState({
-        serialNumber: '',
-        computerTag: '',
-        processor: '',
-        storage: '',
-        ram: '',
-        labId: '',
-        location: '',
-        status: 'operational',
-        owner: '',
-        notes: ''
-    });
+    const [formData, setFormData] = useState(initialForm);
+
+    const location = useLocation();
 
     useEffect(() => {
         fetchData();
+        if (location.state?.openAddForm) {
+            setShowForm(true);
+            setIsEditMode(false);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
-
+    
     const fetchData = async () => {
         try {
             setLoading(true);
@@ -59,13 +76,65 @@ const InventoryManagement = () => {
         setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
     };
 
+    const handleEdit = (item) => {
+        setEditingItem(item);
+        setFormData({
+            serialNumber: item.specifications?.serialNumber || '',
+            computerTag: item.specifications?.specifications?.computerTag || item.code || '',
+            processor: item.specifications?.specifications?.processor || '',
+            storage: item.specifications?.specifications?.storage || '',
+            ram: item.specifications?.specifications?.ram || '',
+            labId: item.lab?._id || '',
+            location: item.location || '',
+            status: item.status || 'operational',
+            owner: item.specifications?.specifications?.owner || item.lab?.supervisor?.name || '',
+            notes: item.notes || ''
+        });
+        setShowForm(true);
+        setIsEditMode(true);
+    };
+
+    const handleView = (item) => {
+        setViewingItem(item);
+    };
+
+    const handleExport = async (format) => {
+        try {
+            setExporting(true);
+            const today = new Date().toISOString().split('T')[0];
+            
+            // Use 'equipment' for inventory data export as per API mapping
+            const url = `/reports/export/${format}?type=equipment`;
+            
+            const response = await api.get(url, {
+                responseType: 'blob'
+            });
+            
+            const downloadUrl = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.setAttribute('download', `hardware_inventory_${today}.${format}`);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(downloadUrl);
+            
+            setSuccessMessage(`Inventory exported as ${format.toUpperCase()} successfully`);
+            setTimeout(() => setSuccessMessage(''), 3000);
+        } catch (err) {
+            setError(`Failed to export as ${format.toUpperCase()}`);
+        } finally {
+            setExporting(false);
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
             const selectedLab = labs.find(lab => lab._id === formData.labId);
             const fallbackOwner = formData.owner.trim() || selectedLab?.supervisor?.name || '';
-
-            const response = await api.post('/inventory', {
+            
+            const payload = {
                 name: formData.computerTag || `Computer ${formData.serialNumber}`,
                 code: formData.computerTag || formData.serialNumber,
                 category: 'computer',
@@ -83,28 +152,28 @@ const InventoryManagement = () => {
                         owner: fallbackOwner
                     }
                 }
-            });
+            };
 
-            if (response.data.success) {
+            let response;
+            if (isEditMode) {
+                response = await api.put(`/inventory/${editingItem._id}`, payload);
+                setSuccessMessage('Hardware inventory record updated successfully');
+            } else {
+                response = await api.post('/inventory', payload);
                 setSuccessMessage('Hardware inventory record added successfully');
+            }
+
+            if (response.data.success) { // Assuming API returns success field
                 setShowForm(false);
-                setFormData({
-                    serialNumber: '',
-                    computerTag: '',
-                    processor: '',
-                    storage: '',
-                    ram: '',
-                    labId: '',
-                    location: '',
-                    status: 'operational',
-                    owner: '',
-                    notes: ''
-                });
-                fetchData();
-                setTimeout(() => setSuccessMessage(''), 3000);
+                setIsEditMode(false);
+                setEditingItem(null);
+                setFormData(initialForm); // Reset form to initial state
+                fetchData(); // Re-fetch data to update the table
+                setTimeout(() => setSuccessMessage(''), 3000); // Clear success message after 3 seconds
             }
         } catch (err) {
-            setError('Failed to add hardware inventory record');
+            const serverMessage = err.response?.data?.message;
+            setError(serverMessage || 'Server error');
             console.error('Error adding inventory:', err);
             setTimeout(() => setError(''), 3000);
         }
@@ -153,21 +222,38 @@ const InventoryManagement = () => {
     return (
         <DashboardLayout>
             <div className="inventory-management">
-                <div className="page-header">
+                <div className="page-header inventory-page-header">
                     <div>
                         <h1>Manual Hardware Inventory</h1>
                         <p className="page-description">Track desktop hardware in a spreadsheet-style register.</p>
                     </div>
-                    <Button variant="primary" onClick={() => setShowForm(!showForm)}>
-                        {showForm ? 'Close Form' : 'Add Hardware Record'}
-                    </Button>
+                    <div className="inventory-top-actions">
+                        <Button 
+                            variant={!showForm ? 'primary' : 'secondary'} 
+                            onClick={() => { setShowForm(false); setIsEditMode(false); }}
+                        >
+                            Show Data
+                        </Button>
+                        <Button 
+                            variant={showForm && !isEditMode ? 'primary' : 'secondary'} 
+                            onClick={() => { setShowForm(true); setIsEditMode(false); setFormData(initialForm); }}
+                        >
+                            Add Data
+                        </Button>
+                        <Button variant="outline" onClick={() => handleExport('csv')} loading={exporting}>
+                            Export CSV
+                        </Button>
+                        <Button variant="outline" onClick={() => handleExport('pdf')} loading={exporting}>
+                            Export PDF
+                        </Button>
+                    </div>
                 </div>
 
                 {error && <div className="error-message">{error}</div>}
                 {successMessage && <div className="success-message">{successMessage}</div>}
 
                 {showForm && (
-                    <Card title="Add Manual Hardware Inventory Record" className="inventory-form-card">
+                    <Card title={isEditMode ? "Edit Hardware Inventory Record" : "Add Manual Hardware Inventory Record"} className="inventory-form-card">
                         <form onSubmit={handleSubmit}>
                             <div className="form-row form-row-3">
                                 <div className="form-group">
@@ -229,7 +315,7 @@ const InventoryManagement = () => {
                                 <textarea name="notes" value={formData.notes} onChange={handleChange} rows="3" placeholder="Optional notes" />
                             </div>
 
-                            <Button type="submit" variant="primary">Save Inventory Record</Button>
+                            <Button type="submit" variant="primary">{isEditMode ? 'Update Record' : 'Save Inventory Record'}</Button>
                         </form>
                     </Card>
                 )}
@@ -260,6 +346,7 @@ const InventoryManagement = () => {
                                     <tr>
                                         <th>No</th>
                                         <th>Serial Number</th>
+                                        <th>Name</th>
                                         <th>Computer Tag</th>
                                         <th>Processor</th>
                                         <th>SSD/HDD</th>
@@ -278,7 +365,8 @@ const InventoryManagement = () => {
                                         return (
                                             <tr key={item._id}>
                                                 <td>{index + 1}</td>
-                                                <td>{item.specifications?.serialNumber || 'N/A'}</td>
+                                                <td>{item.specifications?.serialNumber || item.code || 'N/A'}</td>
+                                                <td>{item.name || 'N/A'}</td>
                                                 <td>{specs.computerTag || item.code || item.name}</td>
                                                 <td>{specs.processor || 'N/A'}</td>
                                                 <td>{specs.storage || 'N/A'}</td>
@@ -288,9 +376,17 @@ const InventoryManagement = () => {
                                                 <td>{owner}</td>
                                                 <td>{item.lab?.name || 'N/A'}</td>
                                                 <td>
-                                                    <button className="sheet-delete-btn" onClick={() => handleDelete(item._id)}>
-                                                        Remove
-                                                    </button>
+                                                    <div className="sheet-actions">
+                                                        <Button variant="secondary" size="small" onClick={() => handleView(item)}>
+                                                            Detail
+                                                        </Button>
+                                                        <Button variant="primary" size="small" onClick={() => handleEdit(item)}>
+                                                            Edit
+                                                        </Button>
+                                                        <Button variant="danger" size="small" onClick={() => handleDelete(item._id)}>
+                                                            Remove
+                                                        </Button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         );
@@ -300,6 +396,38 @@ const InventoryManagement = () => {
                         </div>
                     )}
                 </Card>
+
+                {/* Hardware Detail Modal */}
+                <Modal
+                    isOpen={viewingItem !== null}
+                    onClose={() => setViewingItem(null)}
+                    title="Hardware Inventory Detail"
+                >
+                    {viewingItem && (
+                        <div className="detail-view">
+                            <div className="detail-grid">
+                                <div className="detail-item"><strong>Name</strong><span>{viewingItem.name}</span></div>
+                                <div className="detail-item"><strong>Serial Number</strong><span>{viewingItem.specifications?.serialNumber || 'N/A'}</span></div>
+                                <div className="detail-item"><strong>Computer Tag</strong><span>{viewingItem.specifications?.specifications?.computerTag || viewingItem.code || 'N/A'}</span></div>
+                                <div className="detail-item"><strong>Processor</strong><span>{viewingItem.specifications?.specifications?.processor || 'N/A'}</span></div>
+                                <div className="detail-item"><strong>RAM</strong><span>{viewingItem.specifications?.specifications?.ram || 'N/A'}</span></div>
+                                <div className="detail-item"><strong>Storage</strong><span>{viewingItem.specifications?.specifications?.storage || 'N/A'}</span></div>
+                                <div className="detail-item"><strong>Location</strong><span>{viewingItem.location || 'N/A'}</span></div>
+                                <div className="detail-item"><strong>Lab</strong><span>{viewingItem.lab?.name || 'N/A'}</span></div>
+                                <div className="detail-item"><strong>Status</strong><span className={`sheet-status ${viewingItem.status}`}>{statusLabels[viewingItem.status]}</span></div>
+                                <div className="detail-item"><strong>Lab Owner</strong><span>{viewingItem.specifications?.specifications?.owner || viewingItem.lab?.supervisor?.name || 'N/A'}</span></div>
+                            </div>
+                            <div className="detail-notes">
+                                <strong>Notes</strong>
+                                <p>{viewingItem.notes || 'No additional notes.'}</p>
+                            </div>
+                            <div className="form-actions" style={{ marginTop: '2rem' }}>
+                                <Button variant="secondary" onClick={() => setViewingItem(null)}>Close</Button>
+                                <Button variant="primary" onClick={() => { handleEdit(viewingItem); setViewingItem(null); }}>Edit Record</Button>
+                            </div>
+                        </div>
+                    )}
+                </Modal>
             </div>
         </DashboardLayout>
     );

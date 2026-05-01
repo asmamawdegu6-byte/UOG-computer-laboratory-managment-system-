@@ -241,28 +241,31 @@ const MonitorAttendance = () => {
         }
     };
 
-    const handleMarkPresent = async (studentIdString) => {
+    const handleMarkStatus = async (studentIdString, status) => {
         if (!selectedReservationId || !studentIdString) return;
+        setMarkingAttendance(true);
 
         try {
             // Use session-based marking if available
             if (currentSessionId) {
                 await api.post(`/attendance/sessions/${currentSessionId}/mark`, {
                     studentId: studentIdString,
-                    status: 'present'
+                    status: status
                 });
             } else {
                 await api.post('/attendance/mark-by-student-id', {
                     reservationId: selectedReservationId,
                     studentId: studentIdString,
-                    status: 'present'
+                    status: status
                 });
             }
             fetchSessionStudents(selectedReservationId);
         } catch (err) {
-            const msg = err.response?.data?.message || 'Failed to mark as present';
+            const msg = err.response?.data?.message || `Failed to mark as ${status}`;
             setError(msg);
             setTimeout(() => setError(''), 4000);
+        } finally {
+            setMarkingAttendance(false);
         }
     };
 
@@ -380,9 +383,9 @@ const MonitorAttendance = () => {
                 return (
                     <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                         {/* Present Button */}
-                        {isAbsent && (
+                        {(isAbsent || row?.status === 'late') && (
                             <button
-                                onClick={() => handleMarkPresent(student?.studentId)}
+                                onClick={() => handleMarkStatus(student?.studentId, 'present')}
                                 style={{
                                     padding: '0.25rem 0.5rem',
                                     fontSize: '0.75rem',
@@ -395,6 +398,25 @@ const MonitorAttendance = () => {
                                 }}
                             >
                                 Present
+                            </button>
+                        )}
+
+                        {/* Late Button */}
+                        {isAbsent && (
+                            <button
+                                onClick={() => handleMarkStatus(student?.studentId, 'late')}
+                                style={{
+                                    padding: '0.25rem 0.5rem',
+                                    fontSize: '0.75rem',
+                                    backgroundColor: '#f59e0b',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '0.25rem',
+                                    cursor: 'pointer',
+                                    fontWeight: '500'
+                                }}
+                            >
+                                Late
                             </button>
                         )}
                         

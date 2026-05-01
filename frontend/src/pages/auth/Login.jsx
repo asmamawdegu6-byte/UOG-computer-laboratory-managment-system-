@@ -512,13 +512,23 @@ const Login = () => {
              </Button>
            </form>
 
-           <div className="forgot-password-link">
+<div className="forgot-password-link">
+             {/* Option 1: Use email-based reset (recommended) */}
+             <Link 
+               to="/forgot-password-email" 
+               className="link-button"
+               style={{ display: 'block', marginBottom: '0.5rem' }}
+             >
+               Forgot Password? (Reset via Email)
+             </Link>
+             {/* Option 2: Use SMS-based reset (requires Twilio) */}
              <button 
                type="button" 
                className="link-button" 
                onClick={() => setShowForgotPassword(true)}
+               style={{ fontSize: '0.875rem', color: '#64748b' }}
              >
-               Forgot Password?
+               Reset via SMS
              </button>
            </div>
          </>

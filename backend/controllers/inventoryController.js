@@ -1,4 +1,6 @@
 const Equipment = require('../models/Equipment');
+// Ensure Lab model is registered for populate to work
+require('../models/Lab');
 
 // @route   GET /api/inventory
 // @desc    Get all inventory items
@@ -6,6 +8,8 @@ const Equipment = require('../models/Equipment');
 exports.getAllItems = async (req, res) => {
     try {
         const { status, category, lab, search, page = 1, limit = 1000 } = req.query;
+        console.log('[Inventory] getAllItems query:', { status, category, lab, search, page, limit });
+
         let query = {};
 
         if (status) query.status = status;
@@ -19,12 +23,16 @@ exports.getAllItems = async (req, res) => {
         }
 
         const skip = (parseInt(page) - 1) * parseInt(limit);
+        console.log('[Inventory] Query object:', JSON.stringify(query));
+
         const items = await Equipment.find(query)
             .populate('lab', 'name code supervisor')
             .populate('assignedTo', 'name username')
             .skip(skip)
             .limit(parseInt(limit))
             .sort({ createdAt: -1 });
+
+        console.log('[Inventory] Found', items.length, 'items');
 
         const total = await Equipment.countDocuments(query);
 
@@ -45,8 +53,13 @@ exports.getAllItems = async (req, res) => {
             pagination: { page: parseInt(page), limit: parseInt(limit), total, pages: Math.ceil(total / parseInt(limit)) }
         });
     } catch (error) {
-        console.error('Get inventory error:', error);
-        res.status(500).json({ success: false, message: 'Server error' });
+        console.error('[Inventory] GET /api/inventory error:', {
+            message: error.message,
+            stack: error.stack,
+            name: error.name,
+            code: error.code
+        });
+        res.status(500).json({ success: false, message: 'Server error', error: error.message });
     }
 };
 
@@ -83,7 +96,17 @@ exports.createItem = async (req, res) => {
         res.status(201).json({ success: true, message: 'Item added to inventory', item });
     } catch (error) {
         console.error('Create inventory item error:', error);
-        res.status(500).json({ success: false, message: 'Server error' });
+
+        let errorMessage = 'Server error';
+        if (error.name === 'ValidationError') {
+            errorMessage = Object.values(error.errors).map(err => err.message).join(', ');
+        } else if (error.code === 11000) {
+            errorMessage = 'An item with this code or serial number already exists';
+        } else if (error.message) {
+            errorMessage = error.message;
+        }
+
+        res.status(500).json({ success: false, message: errorMessage });
     }
 };
 

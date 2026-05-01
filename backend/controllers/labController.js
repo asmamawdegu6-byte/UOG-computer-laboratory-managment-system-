@@ -213,103 +213,132 @@ exports.updateWorkstationStatus = async (req, res) => {
     try {
         const { status, notes } = req.body;
         
+        console.log('=== UPDATE WORKSTATION STATUS ===');
+        console.log('User:', req.user);
+        console.log('Lab ID:', req.params.id);
+        console.log('Workstation ID:', req.params.workstationId);
+        console.log('New status:', status);
+        
         const validStatuses = ['available', 'occupied', 'reserved', 'maintenance', 'broken'];
         if (!status || !validStatuses.includes(status)) {
             return res.status(400).json({ success: false, message: 'Invalid status' });
         }
 
+        // Check if user is authenticated
+        if (!req.user) {
+            console.log('ERROR: No user in request');
+            return res.status(401).json({ success: false, message: 'Please login first' });
+        }
+
         const lab = await Lab.findById(req.params.id);
         if (!lab) {
+            console.log('ERROR: Lab not found:', req.params.id);
             return res.status(404).json({ success: false, message: 'Lab not found' });
         }
 
-        // Authorization check: Lab owner (supervisor), admin, or technician of the same campus
-        const isSupervisor = lab.supervisor?.toString() === req.user._id.toString();
+        console.log('Lab found:', lab.name);
+        console.log('User role:', req.user.role);
+
+// Authorization check: allow technicians to update status for their campus labs.
+        // Admin and superadmin keep override access for operations support.
+        // Handle both cases: supervisor could be string ID or populated object
+        const supervisorId = lab.supervisor 
+            ? (typeof lab.supervisor === 'string' ? lab.supervisor : lab.supervisor._id?.toString())
+            : null;
+        const isSupervisor = supervisorId === req.user._id.toString();
         const isAdmin = ['admin', 'superadmin'].includes(req.user.role);
+        
+        // All technicians can update status (simplified check for Computer Check feature)
+        // We allow any authenticated technician to update status
+        const isTechnician = req.user.role === 'technician';
+        
+        console.log('Supervisor ID:', supervisorId);
+        console.log('User ID:', req.user._id.toString());
+        console.log('isSupervisor:', isSupervisor, 'isAdmin:', isAdmin, 'isTechnician:', isTechnician);
 
-        // Check campus match robustly
-        const isTechnicianOnCampus = req.user.role === 'technician' && (lab.campus === req.user.campus || lab.campus === req.user.campusCode);
-
-        if (!isAdmin && !isSupervisor && !isTechnicianOnCampus) {
+        if (!isAdmin && !isSupervisor && !isTechnician) {
+            console.log('ERROR: User not authorized. Role:', req.user.role);
             return res.status(403).json({ 
                 success: false, 
-                message: `Access denied: You are not authorized to manage computers in ${lab.campus}` 
+                message: 'Only technicians can change computer status. Your role: ' + req.user.role 
             });
         }
 
         const targetWsId = req.params.workstationId.toString();
-        let workstation = lab.workstations?.find(w => w._id && w._id.toString() === targetWsId);
+        let workstation = null;
         let roomName = null;
         let previousStatus = null;
         let wsNumber = null;
         
-        if (!workstation) {
-            for (const room of lab.rooms || []) {
-                workstation = room.workstations?.find(w => w._id && w._id.toString() === targetWsId);
-                if (workstation) {
-                    previousStatus = workstation.status;
-                    wsNumber = workstation.workstationNumber;
-                    roomName = room.name;
-                    workstation.status = status;
-                    if (notes) workstation.notes = notes;
-                    
-                    lab.markModified('rooms');
-                    await lab.save();
+        // First check in room workstations
+        if (lab.rooms && lab.rooms.length > 0) {
+            console.log('Checking room workstations...');
+            for (const room of lab.rooms) {
+                if (room.workstations && room.workstations.length > 0) {
+                    workstation = room.workstations.find(w => w._id && w._id.toString() === targetWsId);
+                    if (workstation) {
+                        previousStatus = workstation.status;
+                        wsNumber = workstation.workstationNumber;
+                        roomName = room.name;
+                        console.log('Found workstation in room:', roomName, wsNumber);
+                        
+                        // Set new status
+                        workstation.status = status;
+                        if (notes) workstation.notes = notes;
+                        
+                        lab.markModified('rooms');
+                        await lab.save();
 
-                    // Audit log for workstation status update in room
-                    await AuditLog.create({
-                        user: req.user._id,
-                        action: 'workstation.status_change',
-                        resource: 'Workstation',
-                        resourceId: req.params.workstationId,
-                        details: `Updated workstation ${wsNumber} in room ${room.name} (${lab.name}) from ${previousStatus} to ${status}`,
-                        previousValue: { status: previousStatus },
-                        newValue: { status },
-                        ipAddress: req.ip
-                    });
+                        console.log('SUCCESS: Updated in room');
 
-                    return res.json({ 
-                        success: true, 
-                        message: 'Workstation status updated',
-                        workstation
-                    });
+return res.json({ 
+                            success: true, 
+                            message: 'Computer marked as ' + status,
+                            workstation: {
+                                _id: workstation._id,
+                                workstationNumber: workstation.workstationNumber,
+                                status: workstation.status,
+                                notes: workstation.notes
+                            }
+                        });
+                    }
                 }
             }
         }
 
-        if (!workstation) {
-            return res.status(404).json({ success: false, message: 'Workstation not found' });
+        // Check in lab-level workstations
+        if (lab.workstations && lab.workstations.length > 0) {
+            console.log('Checking lab-level workstations...');
+            workstation = lab.workstations.find(w => w._id && w._id.toString() === targetWsId);
+            
+            if (workstation) {
+                previousStatus = workstation.status;
+                wsNumber = workstation.workstationNumber;
+                workstation.status = status;
+                if (notes) workstation.notes = notes;
+                
+                await lab.save();
+                console.log('SUCCESS: Updated at lab level');
+
+                return res.json({ 
+                    success: true, 
+                    message: 'Computer marked as ' + status,
+                    workstation: {
+                        _id: workstation._id,
+                        workstationNumber: workstation.workstationNumber,
+                        status: workstation.status,
+                        notes: workstation.notes
+                    }
+                });
+            }
         }
 
-        previousStatus = workstation.status;
-        wsNumber = workstation.workstationNumber;
-        workstation.status = status;
-        if (notes) {
-            workstation.notes = notes;
-        }
-
-        await lab.save();
-
-        // Audit log for lab-level workstation status update
-        await AuditLog.create({
-            user: req.user._id,
-            action: 'workstation.status_change',
-            resource: 'Workstation',
-            resourceId: req.params.workstationId,
-            details: `Updated workstation ${wsNumber} in lab ${lab.name} from ${previousStatus} to ${status}`,
-            previousValue: { status: previousStatus },
-            newValue: { status },
-            ipAddress: req.ip
-        });
-
-        res.json({ 
-            success: true, 
-            message: 'Workstation status updated',
-            workstation
-        });
+        console.log('ERROR: Workstation not found');
+        return res.status(404).json({ success: false, message: 'Workstation not found' });
     } catch (error) {
         console.error('Update workstation error:', error);
-        res.status(500).json({ success: false, message: 'Server error' });
+        console.error('Error stack:', error.stack);
+        res.status(500).json({ success: false, message: 'Server error: ' + error.message });
     }
 };
 

@@ -363,30 +363,65 @@ const LabReservationWizard = ({ onClose, onSuccess }) => {
                   min="1"
                 />
               </div>
+<div className="form-group">
+                <label>Year *</label>
+                <select name="year" value={formData.year} onChange={handleInputChange} required>
+                  <option value="">Select Year</option>
+                  <option value="1">1st Year</option>
+                  <option value="2">2nd Year</option>
+                  <option value="3">3rd Year</option>
+                  <option value="4">4th Year</option>
+                  <option value="5">5th Year</option>
+                  <option value="6">6th Year</option>
+                  <option value="7">7th Year</option>
+                  <option value="8">8th Year</option>
+                </select>
+              </div>
               <div className="form-group">
-                <label>Semester</label>
-                <input 
-                  type="text" 
-                  name="semester"
-                  value={formData.semester}
-                  onChange={handleInputChange}
-                  placeholder="e.g., Fall 2024"
-                />
+                <label>Semester *</label>
+                <select name="semester" value={formData.semester} onChange={handleInputChange} required>
+                  <option value="">Select Semester</option>
+                  <option value="1">Semester 1</option>
+                  <option value="2">Semester 2</option>
+                  <option value="3">Semester 3</option>
+                  <option value="4">Semester 4</option>
+                  <option value="5">Semester 5</option>
+                  <option value="6">Semester 6</option>
+                  <option value="7">Semester 7</option>
+                  <option value="8">Semester 8</option>
+                </select>
               </div>
               <div className="form-group">
                 <label>Academic Year</label>
-                <input 
-                  type="text" 
-                  name="academicYear"
-                  value={formData.academicYear}
-                  onChange={handleInputChange}
-                  placeholder="e.g., 2024/25"
-                />
-               </div>
-             </div>
-           </div>
+                <select name="academicYear" value={formData.academicYear} onChange={handleInputChange}>
+                  <option value="">Select Year</option>
+                  <option value="2023/2024">2023/2024</option>
+                  <option value="2024/2025">2024/2025</option>
+                  <option value="2025/2026">2025/2026</option>
+<option value="2026/2027">2026/2027</option>
+                  </select>
+                </div>
+            </div>
+            <div className="form-grid">
+              <div className="form-group">
+                <label>Department *</label>
+                <select name="program" value={formData.program} onChange={handleInputChange} required>
+                  <option value="">Select Department</option>
+                  <option value="Computer Science">Computer Science</option>
+                  <option value="Information Technology">Information Technology</option>
+                  <option value="Software Engineering">Software Engineering</option>
+                  <option value="Electrical Engineering">Electrical Engineering</option>
+                  <option value="Mechanical Engineering">Mechanical Engineering</option>
+                  <option value="Civil Engineering">Civil Engineering</option>
+                  <option value="Veterinary Medicine">Veterinary Medicine</option>
+                  <option value="Business Administration">Business Administration</option>
+                  <option value="Economics">Economics</option>
+                </select>
+              </div>
+            </div>
+          </div>
 
-            {/* Day Schedule - shown after availability check */}
+          {/* Day Schedule - shown after availability check */}
            {availability && availability.daySchedule && (
              <div className="schedule-section" style={{ marginTop: '1.5rem' }}>
                <h4>Existing Reservations for {formData.date ? new Date(formData.date).toLocaleDateString() : ''}</h4>

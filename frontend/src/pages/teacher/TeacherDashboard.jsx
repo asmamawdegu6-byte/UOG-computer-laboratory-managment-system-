@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../components/layout/DashboardLayout';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
-import Modal from '../../components/ui/Modal';
 import api from '../../services/api';
 import './TeacherDashboard.css';
 
@@ -65,7 +64,7 @@ const TeacherDashboard = () => {
 
   const [stats, setStats] = useState([
     { label: 'Active Reservations', value: 0, icon: '📅' },
-    { label: 'Total Students', value: 0, icon: '👨‍🎓' },
+    { label: 'Students Attended', value: 0, icon: '👨‍🎓' },
     { label: 'Materials Uploaded', value: 0, icon: '📤' },
     { label: 'Fault Reports', value: 0, icon: '🔧' }
   ]);
@@ -75,12 +74,6 @@ const TeacherDashboard = () => {
   const [labStats, setLabStats] = useState({ available: 0, occupied: 0, total: 0 });
   const [reservations, setReservations] = useState([]);
   const [activeTab, setActiveTab] = useState('upcoming'); // 'upcoming' | 'all' | 'pending'
-  
-  // Session management state
-  const [showSessionModal, setShowSessionModal] = useState(false);
-  const [selectedReservation, setSelectedReservation] = useState(null);
-  const [activeSessions, setActiveSessions] = useState([]);
-  const [generatingSession, setGeneratingSession] = useState(false);
 
   useEffect(() => {
     fetchDashboardData();
@@ -90,17 +83,19 @@ const TeacherDashboard = () => {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      const [reservationsRes, materialsRes, faultsRes, labsRes] = await Promise.all([
+      const [reservationsRes, materialsRes, faultsRes, labsRes, attendanceRes] = await Promise.all([
         api.get('/reservations/my-reservations'),
         api.get('/materials/my-materials'),
         api.get('/maintenance/faults'),
         api.get('/labs?campus=' + campusCode),
+        api.get('/attendance/history'), // Get actual attendance records
       ]);
 
       const reservationsData = reservationsRes.data.reservations || [];
       const materials = materialsRes.data.materials || [];
       const faults = faultsRes.data.faults || [];
       const labsData = labsRes.data.labs || [];
+      const attendanceData = attendanceRes.data.attendance || [];
 
       let available = 0, occupied = 0, total = 0;
       labsData.forEach(lab => {
@@ -113,11 +108,12 @@ const TeacherDashboard = () => {
       setLabStats({ available, occupied, total });
 
       const activeReservations = reservationsData.filter(r => r.status === 'approved').length;
-      const totalStudents = reservationsData.reduce((sum, r) => sum + (r.numberOfStudents || 0), 0);
+      // Count actual students who attended (present or late status)
+      const studentsAttended = attendanceData.filter(a => a.status === 'present' || a.status === 'late').length;
 
       setStats([
         { label: 'Active Reservations', value: activeReservations, icon: '📅' },
-        { label: 'Total Students', value: totalStudents, icon: '👨‍🎓' },
+        { label: 'Students Attended', value: studentsAttended, icon: '👨‍🎓' },
         { label: 'Materials Uploaded', value: materials.length, icon: '📤' },
         { label: 'Fault Reports', value: faults.filter(f => f.status === 'open' || f.status === 'in-progress').length, icon: '🔧' }
       ]);
@@ -152,64 +148,6 @@ const TeacherDashboard = () => {
     }
   };
 
-  // Session management functions
-  const handleGenerateSession = async (reservation) => {
-    try {
-      setGeneratingSession(true);
-      
-      // Get reservation details first
-      const reservationDetails = reservation;
-      
-      const response = await api.post('/attendance/sessions', {
-        reservationId: reservation._id,
-        courseCode: reservationDetails.courseCode,
-        year: reservationDetails.year,
-        semester: reservationDetails.semester,
-        department: reservationDetails.program
-      });
-      
-      if (response.data.success) {
-        // Auto-start the session
-        const sessionId = response.data.session._id;
-        await api.patch(`/attendance/sessions/${sessionId}/start`);
-        
-        // Add to active sessions and navigate
-        setActiveSessions(prev => [...prev, { ...response.data.session, reservationId: reservation._id }]);
-        fetchDashboardData();
-        
-        // Navigate to Monitor Attendance
-        navigate('/teacher/monitor-attendance', { 
-          state: { selectedReservationId: reservation._id } 
-        });
-      }
-    } catch (err) {
-      console.error('Error generating session:', err);
-      const msg = err.response?.data?.message || 'Failed to generate session';
-      alert(msg);
-    } finally {
-      setGeneratingSession(false);
-    }
-  };
-
-  const openSessionModal = () => {
-    // Get today's approved reservations that can have sessions
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    
-    const eligibleReservations = reservations.filter(r => {
-      if (r.status !== 'approved') return false;
-      const resDate = new Date(r.date);
-      resDate.setHours(0, 0, 0, 0);
-      // Can generate for today or past approved sessions
-      return resDate <= tomorrow;
-    });
-    
-    setSelectedReservation(eligibleReservations[0] || null);
-    setShowSessionModal(true);
-  };
-
   const getStatusColor = (status) => {
     switch (status) {
       case 'pending': return '#f59e0b';
@@ -230,7 +168,7 @@ const TeacherDashboard = () => {
   });
 
   return (
-    <DashboardLayout>
+<DashboardLayout>
       <div className="teacher-dashboard" style={{ '--campus-primary': campusStyle.primary, '--campus-secondary': campusStyle.secondary, '--campus-gradient': campusStyle.gradient }}>
         <div className="dashboard-header-section">
           <div className="campus-badge" style={{ background: campusStyle.secondary, color: campusStyle.accent }}>
@@ -243,15 +181,11 @@ const TeacherDashboard = () => {
             <Button variant="primary" onClick={() => navigate('/teacher/lab-reservation')}>
               + Reserve New Lab
             </Button>
-            <Button variant="success" onClick={openSessionModal} style={{ marginLeft: '0.5rem' }}>
-              🎯 Start Session
-            </Button>
             <Button variant="info" onClick={() => window.open('https://t.me/uog_computer_lab_bot', '_blank')} style={{ marginLeft: '0.5rem' }}>
               📱 Telegram Bot
             </Button>
           </div>
         </div>
-
         {loading ? (
           <div className="loading">Loading dashboard data...</div>
         ) : (
@@ -414,97 +348,10 @@ const TeacherDashboard = () => {
                     <span className="legend-item"><span className="legend-color occupied"></span> Occupied</span>
                   </div>
                 </div>
-              )}
+)}
             </Card>
           </>
         )}
-
-        {/* Session Management Modal */}
-        <Modal
-          isOpen={showSessionModal}
-          onClose={() => setShowSessionModal(false)}
-          title="Start Attendance Session"
-          size="medium"
-        >
-          <div className="session-modal-content">
-            <p style={{ marginBottom: '1rem', color: '#64748b' }}>
-              Select a lab session to generate an attendance session. You can then track student attendance.
-            </p>
-            
-            <div className="form-group">
-              <label>Select Lab Session</label>
-              <select 
-                className="session-selector"
-                value={selectedReservation?._id || ''}
-                onChange={(e) => {
-                  const res = reservations.find(r => r._id === e.target.value);
-                  setSelectedReservation(res || null);
-                }}
-              >
-                <option value="">-- Select a session --</option>
-                {reservations
-                  .filter(r => {
-                    if (r.status !== 'approved') return false;
-                    const resDate = new Date(r.date);
-                    const today = new Date();
-                    today.setHours(0, 0, 0, 0);
-                    const tomorrow = new Date(today);
-                    tomorrow.setDate(tomorrow.getDate() + 1);
-                    resDate.setHours(0, 0, 0, 0);
-                    return resDate <= tomorrow;
-                  })
-                  .map(r => (
-                    <option key={r._id} value={r._id}>
-                      {r.courseName} ({r.courseCode}) - {r.lab?.name} - {r.roomName || 'N/A'} - {new Date(r.date).toLocaleDateString()} ({r.startTime}-{r.endTime})
-                    </option>
-                  ))
-                }
-              </select>
-            </div>
-
-            {selectedReservation && (
-              <div style={{ 
-                padding: '1rem', 
-                backgroundColor: '#f8fafc', 
-                borderRadius: '0.5rem',
-                marginBottom: '1rem' 
-              }}>
-                <h4 style={{ margin: '0 0 0.5rem 0' }}>{selectedReservation.courseName}</h4>
-                <p style={{ margin: '0.25rem 0', fontSize: '0.875rem' }}>
-                  <strong>Lab:</strong> {selectedReservation.lab?.name} {selectedReservation.roomName && `(${selectedReservation.roomName})`}
-                </p>
-                <p style={{ margin: '0.25rem 0', fontSize: '0.875rem' }}>
-                  <strong>Date:</strong> {new Date(selectedReservation.date).toLocaleDateString()}
-                </p>
-                <p style={{ margin: '0.25rem 0', fontSize: '0.875rem' }}>
-                  <strong>Time:</strong> {selectedReservation.startTime} - {selectedReservation.endTime}
-                </p>
-                <p style={{ margin: '0.25rem 0', fontSize: '0.875rem' }}>
-                  <strong>Students:</strong> {selectedReservation.numberOfStudents}
-                </p>
-              </div>
-            )}
-
-            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-              <Button variant="secondary" onClick={() => setShowSessionModal(false)}>
-                Cancel
-              </Button>
-              <Button 
-                variant="primary" 
-                onClick={() => {
-                  if (selectedReservation) {
-                    handleGenerateSession(selectedReservation);
-                    setShowSessionModal(false);
-                  }
-                }}
-                disabled={!selectedReservation || generatingSession}
-                loading={generatingSession}
-              >
-                Generate Session
-              </Button>
-            </div>
-          </div>
-        </Modal>
       </div>
     </DashboardLayout>
   );

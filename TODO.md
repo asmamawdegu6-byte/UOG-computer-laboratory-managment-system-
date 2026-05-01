@@ -1,13 +1,25 @@
-# Technician Manage Booking Implementation
+# Telegram Bot Enhancement TODO
 
-## Steps
-- [x] 1. Add `getTechnicianStats` to `backend/controllers/reportController.js`
-- [x] 2. Add route `GET /api/reports/technician-stats` to `backend/routes/reports.js`
-</new_str
-- [ ] 3. Add `getTechnicianStats` to `frontend/src/services/reportService.js`
-- [ ] 4. Add "Manage Booking" menu item to `frontend/src/components/common/Sidebar.jsx`
-- [ ] 5. Add route `/technician/manage-booking` to `frontend/src/routes/AppRoutes.jsx`
-- [ ] 6. Create `frontend/src/pages/technician/TechnicianManageBooking.jsx`
-- [ ] 7. Create `frontend/src/pages/technician/TechnicianManageBooking.css`
-- [ ] 8. Test and verify implementation
+## Task: Enhance Telegram Bot with Email & Map Features
 
+### Step 1: Review Current Code
+- [x] Review telegramBot.js - DONE
+- [x] Review Lab model for location data - DONE
+
+### Step 2: Add New Main Menu Buttons
+- [x] Add "📧 Email Support" button to main menu
+- [x] Add "🗺️ View Map" button to main menu
+
+### Step 3: Implement Email Conversation Flow
+- [ ] Add email conversation states (AWAITING_EMAIL, AWAITING_SUBJECT, AWAITING_MESSAGE)
+- [ ] Create email input handler
+- [ ] Integrate with existing sendEmail function
+
+### Step 4: Implement Map Feature
+- [ ] Add map conversation state (AWAITING_MAP_LAB)
+- [ ] Generate Google Maps link from lab location
+- [ ] Display map link to user
+
+### Step 5: Test the Implementation
+- [ ] Test email conversation flow
+- [ ] Test map feature

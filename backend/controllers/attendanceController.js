@@ -1,11 +1,18 @@
 const Attendance = require('../models/Attendance');
 const Reservation = require('../models/Reservation');
 const User = require('../models/User');
+const Booking = require('../models/Booking');
 const { createNotification } = require('./notificationController');
+const AttendanceSession = require('../models/AttendanceSession');
 
 // Internal helper to handle common attendance marking and notification logic
-const processAttendanceMarking = async ({ reservation, studentId, status, markedBy, notes }) => {
-    let attendance = await Attendance.findOne({ reservation: reservation._id, student: studentId });
+const processAttendanceMarking = async ({ reservation, session, studentId, status, markedBy, notes }) => {
+    let attendance = await Attendance.findOne({
+        $or: [
+            { reservation: reservation?._id, student: studentId },
+            { session: session?._id, student: studentId }
+        ]
+    });
 
     if (attendance) {
         attendance.status = status;
@@ -16,7 +23,8 @@ const processAttendanceMarking = async ({ reservation, studentId, status, marked
         if (notes) attendance.notes = notes;
     } else {
         attendance = new Attendance({
-            reservation: reservation._id,
+            reservation: reservation?._id || reservation || null,
+            session: session?._id || null,
             student: studentId,
             status,
             markedBy,
@@ -33,20 +41,23 @@ const processAttendanceMarking = async ({ reservation, studentId, status, marked
 
     // Send notification asynchronously
     const statusText = status === 'present' ? 'present' : status === 'late' ? 'late' : status === 'absent' ? 'absent' : status;
+    const courseName = reservation?.courseName || session?.courseCode || 'the lab session';
+    const dateStr = reservation?.date ? new Date(reservation.date).toLocaleDateString() : new Date().toLocaleDateString();
+
     createNotification({
         recipient: studentId,
         sender: markedBy,
         type: 'attendance_marked',
         title: 'Attendance Marked',
-        message: `Your attendance has been marked as ${statusText} for ${reservation.courseName || 'the lab session'} on ${new Date(reservation.date).toLocaleDateString()}.`,
+        message: `Your attendance has been marked as ${statusText} for ${courseName} on ${dateStr}.`,
         link: '/student/bookings',
         priority: 'medium',
-        relatedModel: 'Reservation',
-        relatedId: reservation._id,
+        relatedModel: reservation ? 'Reservation' : 'AttendanceSession',
+        relatedId: reservation?._id || session?._id,
         metadata: {
-            courseName: reservation.courseName,
+            courseName: courseName,
             status: status,
-            date: reservation.date
+            date: reservation?.date || new Date()
         }
     }).catch(err => console.error('Failed to send attendance notification:', err));
 
@@ -238,7 +249,7 @@ exports.getAttendanceStats = async (req, res) => {
 
 // @route   GET /api/attendance/session/:reservationId
 // @desc    Get session info for QR attendance page (public)
-// @access  Public
+// @access  Public  
 exports.getSessionInfo = async (req, res) => {
     try {
         const reservation = await Reservation.findById(req.params.reservationId)
@@ -420,6 +431,63 @@ exports.checkOutStudent = async (req, res) => {
     } catch (error) {
         console.error('Check-out error:', error);
         res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @route   POST /api/attendance/sessions/:sessionId/mark
+// @desc    Mark attendance for a session using Student ID or ObjectId
+// @access  Teacher/Admin
+exports.markSessionAttendance = async (req, res) => {
+    try {
+        const { sessionId } = req.params;
+        const { studentId, status, notes } = req.body;
+
+        if (!sessionId) return res.status(400).json({ success: false, message: 'Session ID is required' });
+
+        const session = await AttendanceSession.findById(sessionId);
+        if (!session) {
+            return res.status(404).json({ success: false, message: 'Attendance session not found' });
+        }
+
+        // Find student by Student ID string or ObjectId
+        let student;
+        if (studentId.match(/^[0-9a-fA-F]{24}$/)) {
+            student = await User.findById(studentId);
+        } else {
+            student = await User.findOne({
+                studentId: { $regex: new RegExp(`^${studentId.trim()}$`, 'i') },
+                role: 'student'
+            });
+        }
+
+        if (!student) {
+            return res.status(404).json({ success: false, message: `Student ID "${studentId}" not found` });
+        }
+
+        // Determine if student is late based on session start time
+        let finalStatus = status;
+        if (status === 'present' && session.startedAt) {
+            const now = new Date();
+            const startTime = new Date(session.startedAt);
+            const diffMins = (now - startTime) / (1000 * 60);
+            if (diffMins > 15) { // 15 minute grace period
+                finalStatus = 'late';
+            }
+        }
+
+        const attendance = await processAttendanceMarking({
+            session,
+            reservation: session.reservation ? (typeof session.reservation === 'object' ? session.reservation : { _id: session.reservation }) : null,
+            studentId: student._id,
+            status: finalStatus,
+            markedBy: req.user._id,
+            notes
+        });
+
+        res.json({ success: true, message: 'Attendance marked', status: finalStatus, attendance });
+    } catch (error) {
+        console.error('Mark session attendance error:', error);
+        res.status(500).json({ success: false, message: error.message || 'Server error during attendance marking' });
     }
 };
 

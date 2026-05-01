@@ -25,6 +25,12 @@ const TechComputerCheck = () => {
   const [updating, setUpdating] = useState(null);
   const [message, setMessage] = useState('');
 
+  // Helper to convert ID to string (handles both string and ObjectId formats)
+  const wsIdToString = (id) => {
+    if (!id) return null;
+    return typeof id === 'string' ? id : id.toString();
+  };
+
   const getTechnicianCampus = () => {
     try {
       const userStr = localStorage.getItem('user');
@@ -59,9 +65,10 @@ const TechComputerCheck = () => {
     }
   };
 
-  useEffect(() => {
+useEffect(() => {
     if (selectedLab) {
-      fetchRooms(selectedLab._id);
+      const labId = wsIdToString(selectedLab._id);
+      if (labId) fetchRooms(labId);
     }
   }, [selectedLab]);
 
@@ -88,8 +95,11 @@ const TechComputerCheck = () => {
   const fetchWorkstations = async () => {
     if (!selectedLab || !selectedRoom) return;
     
+    const labId = wsIdToString(selectedLab._id);
+    if (!labId) return;
+    
     try {
-      const response = await api.get(`/labs/${selectedLab._id}/availability`, {
+      const response = await api.get(`/labs/${labId}/availability`, {
         params: { date: new Date().toISOString().split('T')[0] }
       });
       
@@ -117,28 +127,58 @@ const TechComputerCheck = () => {
     }
   };
 
-  const handleStatusUpdate = async (workstationId, newStatus) => {
-    if (!selectedLab) return;
+const handleStatusUpdate = async (workstationId, newStatus) => {
+    const wsId = wsIdToString(workstationId);
+    const labId = selectedLab ? wsIdToString(selectedLab._id) : null;
+    
+    // Validate inputs
+    if (!labId || !wsId) {
+      console.error('Missing required params:', { labId, workstationId: wsId });
+      setMessage('Error: Missing lab or workstation information');
+      setTimeout(() => setMessage(''), 3000);
+      return;
+    }
     
     try {
-      setUpdating(workstationId);
-      const response = await api.put(`/labs/${selectedLab._id}/workstations/${workstationId}`, {
+      setUpdating(wsId);
+      setMessage('Updating computer status...');
+      
+      console.log('=== UPDATING WORKSTATION STATUS ===');
+      console.log('Workstation ID:', wsId);
+      console.log('New status:', newStatus);
+      console.log('Lab ID:', labId);
+      
+      // Make the API call
+      const response = await api.put(`/labs/${labId}/workstations/${wsId}`, {
         status: newStatus
       });
 
-      if (response.data.success) {
-        setMessage('Computer status changed successfully');
+      console.log('Update response:', response.data);
+
+if (response.data.success) {
+        // Show success message with the specific status
+        const successMsg = response.data.message || `Computer marked as ${newStatus}`;
+        setMessage(successMsg);
         setTimeout(() => setMessage(''), 3000);
         
-        setWorkstations(prev => prev.map(ws => 
-          ws._id === workstationId ? { ...ws, status: newStatus } : ws
-        ));
+        // Update local state with the response data
+        const updatedWs = response.data.workstation;
+        setWorkstations(prev => prev.map(ws => {
+          const currentWsId = wsIdToString(ws._id);
+          return currentWsId === wsId && updatedWs 
+            ? { ...ws, status: updatedWs.status } 
+            : ws;
+        }));
+      } else {
+        setMessage(response.data.message || 'Failed to update status');
+        setTimeout(() => setMessage(''), 5000);
       }
     } catch (error) {
       console.error('Error updating workstation:', error);
-      const errorMsg = error.response?.data?.message || 'Failed to update computer status';
+      console.error('Error response:', error.response?.data);
+      const errorMsg = error.response?.data?.message || error.message || 'Failed to update status';
       setMessage(errorMsg);
-      setTimeout(() => setMessage(''), 3000);
+      setTimeout(() => setMessage(''), 5000);
     } finally {
       setUpdating(null);
     }
@@ -154,7 +194,12 @@ const TechComputerCheck = () => {
     return statusConfig?.label || status;
   };
 
-  const canUpdate = ['admin', 'superadmin', 'technician'].includes(user?.role);
+const currentUserId = user?._id || user?.id;
+  const supervisorId = selectedLab?.supervisor?._id || selectedLab?.supervisor;
+  const isLabOwner = currentUserId && supervisorId && String(currentUserId) === String(supervisorId);
+  // Technicians can update if they are admin, superadmin, or lab owner
+  // The backend will handle authorization for regular technicians
+  const canUpdate = ['admin', 'superadmin', 'technician'].includes(user?.role) || isLabOwner;
 
   if (loading) {
     return (
@@ -172,13 +217,13 @@ const TechComputerCheck = () => {
         <div className="page-header">
           <div>
             <h1>Computer Check - {campus}</h1>
-            <p>Manually check and update computer status</p>
-            {selectedLab && (
+            <p>{canUpdate ? 'Manually check and update computer status' : 'View computer status in read-only mode'}</p>
+{selectedLab && (
               <p className="lab-owner-info" style={{ marginTop: '0.5rem', fontSize: '0.9rem' }}>
-                <strong>Lab Supervisor:</strong> {selectedLab.supervisor?.name || 'System'} 
-                {!canUpdate && (
-                  <span style={{ marginLeft: '10px', color: '#dc2626', fontWeight: '600' }}>
-                    (Read-Only Mode)
+                <strong>Lab Owner:</strong> {selectedLab.supervisor?.name || 'System'} 
+                {user?.role === 'technician' && !isLabOwner && (
+                  <span style={{ marginLeft: '10px', color: '#22c55e', fontWeight: '600' }}>
+                    (You can update status)
                   </span>
                 )}
               </p>
@@ -244,7 +289,7 @@ const TechComputerCheck = () => {
                 className={`computer-item ${ws.status}`}
                 style={{ borderLeftColor: getStatusColor(ws.status) }}
               >
-                <div className="computer-header">
+<div className="computer-header">
                   <span className="computer-number">
                     {ws.workstationNumber || idx + 1}
                   </span>
@@ -255,25 +300,36 @@ const TechComputerCheck = () => {
                     {getStatusLabel(ws.status)}
                   </span>
                 </div>
+                {ws.lastUpdatedBy && (
+                  <div className="computer-updated-by">
+                    By: {ws.lastUpdatedBy} 
+                    {ws.lastUpdatedAt && new Date(ws.lastUpdatedAt).toLocaleDateString()}
+                  </div>
+                )}
                 
-                <div className="computer-actions">
-                  {TECH_STATUSES.map(status => (
-                    <button
-                      key={status.value}
-                      className={`status-btn ${ws.status === status.value ? 'current' : ''}`}
-                      style={{ 
-                        backgroundColor: ws.status === status.value ? status.color : 'transparent',
-                        color: ws.status === status.value ? 'white' : status.color,
-                        borderColor: status.color,
-                        opacity: !canUpdate && ws.status !== status.value ? 0.5 : 1
-                      }}
-                      onClick={() => handleStatusUpdate(ws._id, status.value)}
-                      disabled={updating === ws._id || !canUpdate}
-                      title={`Mark as ${status.label}`}
-                    >
-                      {status.label}
-                    </button>
-                  ))}
+<div className="computer-actions">
+                  {TECH_STATUSES.map(status => {
+                    const wsId = wsIdToString(ws._id);
+                    const isUpdating = updating === wsId;
+                    return (
+                      <button
+                        key={status.value}
+                        className={`status-btn ${ws.status === status.value ? 'current' : ''}`}
+                        style={{ 
+                          backgroundColor: ws.status === status.value ? status.color : 'transparent',
+                          color: ws.status === status.value ? 'white' : status.color,
+                          borderColor: status.color,
+                          opacity: (!canUpdate && ws.status !== status.value) || isUpdating ? 0.5 : 1,
+                          cursor: (!canUpdate || isUpdating) ? 'not-allowed' : 'pointer'
+                        }}
+                        onClick={() => handleStatusUpdate(ws._id, status.value)}
+                        disabled={isUpdating || !canUpdate}
+                        title={canUpdate ? `Mark as ${status.label}` : 'Read-only: only the lab owner can change status'}
+                      >
+                        {status.label}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             ))}

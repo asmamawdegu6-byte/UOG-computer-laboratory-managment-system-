@@ -103,6 +103,26 @@ router.post('/reset-password-by-phone', [
     validate
 ], authController.resetPasswordByPhone);
 
+// @route   POST /api/auth/send-email-code
+// @desc    Send verification code via email
+router.post('/send-email-code', authController.sendEmailCode);
+
+// @route   POST /api/auth/verify-email-code
+// @desc    Verify email code
+router.post('/verify-email-code', [
+    body('email').isEmail().withMessage('Valid email is required'),
+    body('code').notEmpty().withMessage('Code is required'),
+    validate
+], authController.verifyEmailCode);
+
+// @route   POST /api/auth/reset-password-by-email
+// @desc    Reset password by email verification
+router.post('/reset-password-by-email', [
+    body('email').isEmail().withMessage('Valid email is required'),
+    body('newPassword').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+    validate
+], authController.resetPasswordByEmail);
+
 // @route   GET /api/auth/me
 router.get('/me', authenticate, authController.getMe);
 

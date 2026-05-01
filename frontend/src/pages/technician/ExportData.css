@@ -1,0 +1,120 @@
+.export-data-page {
+  padding: 1.5rem;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.export-data-page .page-header {
+  margin-bottom: 1.5rem;
+}
+
+.export-data-page h1 {
+  margin: 0 0 0.25rem;
+  color: #1e293b;
+}
+
+.export-data-page .page-description {
+  color: #64748b;
+  margin: 0;
+}
+
+.export-message {
+  padding: 0.85rem 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  font-weight: 600;
+}
+
+.export-message.success {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.export-message.error {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.export-data-card {
+  margin-bottom: 1.5rem;
+}
+
+.export-data-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.export-data-form .form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.export-data-form .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.export-data-form .form-group label {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #334155;
+}
+
+.export-data-form .form-group input,
+.export-data-form .form-group select,
+.export-data-form .form-group textarea {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0.75rem 0.85rem;
+  font: inherit;
+  color: #1e293b;
+  background: #fff;
+}
+
+.export-data-form .form-group textarea {
+  resize: vertical;
+}
+
+.export-checklist {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.export-checklist label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid #dbeafe;
+  background: #eff6ff;
+  color: #1e40af;
+  border-radius: 8px;
+  padding: 0.75rem;
+  font-weight: 700;
+}
+
+.export-checklist input {
+  width: 1rem;
+  height: 1rem;
+}
+
+.export-data-form .form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+@media (max-width: 768px) {
+  .export-data-form .form-grid,
+  .export-checklist {
+    grid-template-columns: 1fr;
+  }
+
+  .export-data-form .form-actions {
+    flex-direction: column-reverse;
+  }
+}

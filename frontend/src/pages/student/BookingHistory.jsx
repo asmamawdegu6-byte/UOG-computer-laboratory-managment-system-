@@ -1,87 +1,49 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import DashboardLayout from '../../components/layout/DashboardLayout';
+import api from '../../services/api';
 import './BookingHistory.css';
 
 const BookingHistory = () => {
-  // Mock booking history data
-  const bookingHistory = [
-    {
-      id: 'BK001',
-      lab: 'Computer Lab A',
-      workstation: 'PC 12',
-      date: '2026-03-26',
-      time: '09:00 - 11:00',
-      status: 'completed',
-      checkedIn: '08:55',
-      checkedOut: '11:05'
-    },
-    {
-      id: 'BK002',
-      lab: 'Computer Lab C',
-      workstation: 'PC 05',
-      date: '2026-03-20',
-      time: '14:00 - 16:00',
-      status: 'completed',
-      checkedIn: '14:02',
-      checkedOut: '16:00'
-    },
-    {
-      id: 'BK003',
-      lab: 'Computer Lab B',
-      workstation: 'PC 20',
-      date: '2026-03-15',
-      time: '10:00 - 12:00',
-      status: 'cancelled',
-      checkedIn: '-',
-      checkedOut: '-'
-    },
-    {
-      id: 'BK004',
-      lab: 'Computer Lab A',
-      workstation: 'PC 08',
-      date: '2026-03-10',
-      time: '13:00 - 15:00',
-      status: 'completed',
-      checkedIn: '12:58',
-      checkedOut: '15:02'
-    },
-    {
-      id: 'BK005',
-      lab: 'Programming Lab',
-      workstation: 'PC 15',
-      date: '2026-02-28',
-      time: '09:00 - 11:00',
-      status: 'completed',
-      checkedIn: '09:00',
-      checkedOut: '11:00'
-    },
-    {
-      id: 'BK006',
-      lab: 'Computer Lab B',
-      workstation: 'PC 03',
-      date: '2026-02-20',
-      time: '14:00 - 16:00',
-      status: 'completed',
-      checkedIn: '14:05',
-      checkedOut: '15:55'
-    },
-  ];
+  const [bookings, setBookings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const fetchHistory = async () => {
+      try {
+        setLoading(true);
+        const response = await api.get('/bookings/history');
+        if (response.data.success) {
+          setBookings(response.data.bookings);
+        }
+      } catch (err) {
+        console.error('Fetch history error:', err);
+        setError('Failed to load booking history');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchHistory();
+  }, []);
 
   const getStatusBadge = (status) => {
     const config = {
+      pending: { class: 'status-pending', label: 'Pending' },
+      confirmed: { class: 'status-confirmed', label: 'Confirmed' },
       completed: { class: 'status-completed', label: 'Completed' },
       cancelled: { class: 'status-cancelled', label: 'Cancelled' },
-      noShow: { class: 'status-noshow', label: 'No Show' }
+      'no-show': { class: 'status-noshow', label: 'No Show' }
     };
     return <span className={`status-badge ${config[status]?.class || ''}`}>{config[status]?.label || status}</span>;
   };
 
   // Calculate stats
   const stats = {
-    total: bookingHistory.length,
-    completed: bookingHistory.filter(b => b.status === 'completed').length,
-    cancelled: bookingHistory.filter(b => b.status === 'cancelled').length,
-    hoursUsed: bookingHistory
+    total: bookings.length,
+    completed: bookings.filter(b => b.status === 'completed').length,
+    cancelled: bookings.filter(b => b.status === 'cancelled').length,
+    hoursUsed: bookings
       .filter(b => b.status === 'completed')
       .reduce((acc) => acc + 2, 0)
   };
@@ -178,15 +140,15 @@ const BookingHistory = () => {
                 </tr>
               </thead>
               <tbody>
-                {bookingHistory.map((booking) => (
-                  <tr key={booking.id}>
-                    <td className="booking-id">{booking.id}</td>
-                    <td>{booking.lab}</td>
-                    <td>{booking.workstation}</td>
-                    <td>{booking.date}</td>
-                    <td>{booking.time}</td>
-                    <td>{booking.checkedIn}</td>
-                    <td>{booking.checkedOut}</td>
+                {bookings.map((booking) => (
+                  <tr key={booking._id}>
+                    <td className="booking-id">#{booking._id.substring(booking._id.length - 6).toUpperCase()}</td>
+                    <td>{booking.lab?.name || 'Unknown Lab'}</td>
+                    <td>{booking.workstation?.workstationNumber || 'N/A'}</td>
+                    <td>{new Date(booking.date).toLocaleDateString()}</td>
+                    <td>{booking.startTime} - {booking.endTime}</td>
+                    <td>{booking.checkedInAt ? new Date(booking.checkedInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
+                    <td>{booking.checkedOutAt ? new Date(booking.checkedOutAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
                     <td>{getStatusBadge(booking.status)}</td>
                   </tr>
                 ))}
@@ -194,7 +156,10 @@ const BookingHistory = () => {
             </table>
           </div>
 
-          {bookingHistory.length === 0 && (
+          {loading && <div className="loading-message">Loading history...</div>}
+          {error && <div className="error-message" style={{ color: 'red', padding: '1rem' }}>{error}</div>}
+
+          {!loading && !error && bookings.length === 0 && (
             <div className="empty-state">
               <div className="empty-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

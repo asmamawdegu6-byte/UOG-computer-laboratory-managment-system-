@@ -33,6 +33,11 @@ router.delete('/clear-all', authenticate, notificationController.clearAllRead);
 // @access  Private
 router.delete('/:id', authenticate, notificationController.deleteNotification);
 
+// @route   POST /api/notifications/export-data
+// @desc    Submit technician export data request
+// @access  Technician
+router.post('/export-data', authenticate, authorize('technician'), notificationController.submitExportDataRequest);
+
 // @route   POST /api/notifications/send
 // @desc    Send a notification to users
 // @access  Admin/Superadmin

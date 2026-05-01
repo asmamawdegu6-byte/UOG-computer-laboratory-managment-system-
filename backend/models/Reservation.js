@@ -80,6 +80,10 @@ const reservationSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
     },
+    assignedTechnician: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
     approvedAt: {
         type: Date
     },
